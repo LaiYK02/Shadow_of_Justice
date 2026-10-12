@@ -1,0 +1,91 @@
+
+# ==========================================
+# SHADOW OF JUSTICE
+# Unity 6.3 - C# Game Project
+# ==========================================
+
+# Unity generated folders
+/[Ll]ibrary/
+/[Tt]emp/
+/[Oo]bj/
+/[Bb]uild/
+/[Bb]uilds/
+/[Ll]ogs/
+/[Uu]ser[Ss]ettings/
+/[Mm]emoryCaptures/
+/[Rr]ecordings/
+/.utmp/
+
+# Unity generated cache and temporary files
+*.log
+sysinfo.txt
+mono_crash.*
+
+# IDE and editor files
+.vs/
+.idea/
+.vscode/
+.consulo/
+ExportedObj/
+
+# Auto-generated C# project files
+*.csproj
+*.unityproj
+*.sln
+*.slnx
+*.suo
+*.tmp
+*.user
+*.userprefs
+*.pidb
+*.booproj
+*.svd
+*.pdb
+*.mdb
+*.opendb
+*.VC.db
+*.DotSettings.user
+
+# Generated metadata
+*.pidb.meta
+*.pdb.meta
+*.mdb.meta
+
+# Build outputs
+*.apk
+*.aab
+*.app
+*.unitypackage
+*.unitypackage.meta
+
+# Android / Gradle
+.gradle/
+
+# Blender backup files
+*.blend1
+*.blend1.meta
+
+# Unity Addressables generated files
+/ServerData/
+/[Aa]ssets/Addressables_Temp*
+/[Aa]ssets/AddressableAssetsData/*/*.bin*
+
+# Unity generated test scenes
+/[Aa]ssets/[Ii]nitTest[Ss]cene*.unity*
+
+# Operating system files
+.DS_Store
+.DS_Store?
+Thumbs.db
+Desktop.ini
+*.lnk
+
+# Crash and diagnostic files
+crashlytics-build.properties
+
+# ==========================================
+# Keep these tracked:
+# Assets/
+# Packages/
+# ProjectSettings/
+# ==========================================
