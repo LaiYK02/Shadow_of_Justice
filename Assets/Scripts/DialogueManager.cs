@@ -1,4 +1,3 @@
-
 using System;
 using TMPro;
 using UnityEngine;
@@ -34,6 +33,9 @@ public class DialogueManager : MonoBehaviour
     private DialogueLine[] activeDialogue;
     private int currentLine;
     private bool isPlaying;
+
+    public event Action DialogueStarted;
+    public event Action DialogueEnded;
 
     private void Awake()
     {
@@ -86,6 +88,8 @@ public class DialogueManager : MonoBehaviour
 
         dialoguePanel.SetActive(true);
         ShowCurrentLine();
+
+        DialogueStarted?.Invoke();
     }
 
     public void AdvanceDialogue()
@@ -128,6 +132,8 @@ public class DialogueManager : MonoBehaviour
 
         if (dialoguePanel != null)
             dialoguePanel.SetActive(false);
+
+        DialogueEnded?.Invoke();
     }
 
     private bool SpacePressed()
