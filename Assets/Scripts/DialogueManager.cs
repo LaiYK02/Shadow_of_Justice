@@ -33,9 +33,13 @@ public class DialogueManager : MonoBehaviour
     private DialogueLine[] activeDialogue;
     private int currentLine;
     private bool isPlaying;
+    private bool isOpeningDialogue;
+
+    public bool IsPlaying => isPlaying;
 
     public event Action DialogueStarted;
     public event Action DialogueEnded;
+    public event Action OpeningDialogueEnded;
 
     private void Awake()
     {
@@ -60,12 +64,19 @@ public class DialogueManager : MonoBehaviour
 
     public void StartOpeningDialogue()
     {
-        StartDialogue(openingDialogue);
+        StartDialogueInternal(openingDialogue, true);
     }
 
-    // Reuse this method for future NPC conversations.
     public void StartDialogue(DialogueLine[] lines)
     {
+        StartDialogueInternal(lines, false);
+    }
+
+    private void StartDialogueInternal(DialogueLine[] lines, bool opening)
+    {
+        if (isPlaying)
+            return;
+
         if (dialoguePanel == null ||
             speakerNameText == null ||
             dialogueText == null)
@@ -85,10 +96,10 @@ public class DialogueManager : MonoBehaviour
         activeDialogue = lines;
         currentLine = 0;
         isPlaying = true;
+        isOpeningDialogue = opening;
 
         dialoguePanel.SetActive(true);
         ShowCurrentLine();
-
         DialogueStarted?.Invoke();
     }
 
@@ -127,13 +138,19 @@ public class DialogueManager : MonoBehaviour
 
     private void EndDialogue()
     {
+        bool wasOpeningDialogue = isOpeningDialogue;
+
         isPlaying = false;
+        isOpeningDialogue = false;
         activeDialogue = null;
 
         if (dialoguePanel != null)
             dialoguePanel.SetActive(false);
 
         DialogueEnded?.Invoke();
+
+        if (wasOpeningDialogue)
+            OpeningDialogueEnded?.Invoke();
     }
 
     private bool SpacePressed()
@@ -148,7 +165,6 @@ public class DialogueManager : MonoBehaviour
         if (Input.GetKeyDown(KeyCode.Space))
             return true;
 #endif
-
         return false;
     }
 }

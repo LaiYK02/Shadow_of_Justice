@@ -9,9 +9,7 @@ public class TutorialPanelController : MonoBehaviour
     [SerializeField] private CanvasGroup canvasGroup;
 
     [Header("Tutorial Content")]
-    [Tooltip("The first tutorial content, e.g. WASD movement and mouse camera controls.")]
     [SerializeField] private GameObject firstTutorialContent;
-    [Tooltip("The second tutorial content, e.g. E to interact with the environment.")]
     [SerializeField] private GameObject secondTutorialContent;
 
     [Header("Display Settings")]
@@ -50,7 +48,6 @@ public class TutorialPanelController : MonoBehaviour
 
         originalPosition = panelRect.anchoredPosition;
         originalScale = panelRect.localScale;
-
         canvasGroup.alpha = 0f;
         tutorialPanel.SetActive(false);
 
@@ -64,13 +61,13 @@ public class TutorialPanelController : MonoBehaviour
     private void OnEnable()
     {
         if (dialogueManager != null)
-            dialogueManager.DialogueEnded += ShowTutorial;
+            dialogueManager.OpeningDialogueEnded += ShowTutorial;
     }
 
     private void OnDisable()
     {
         if (dialogueManager != null)
-            dialogueManager.DialogueEnded -= ShowTutorial;
+            dialogueManager.OpeningDialogueEnded -= ShowTutorial;
 
         if (tutorialCoroutine != null)
         {
@@ -89,22 +86,16 @@ public class TutorialPanelController : MonoBehaviour
 
     private IEnumerator PlayTutorialSequence()
     {
-        // First tutorial: movement and camera.
-        SetTutorialContent(firstTutorialContent, secondTutorialContent, true);
+        SetTutorialContent(true);
         yield return ShowPanel();
-
         yield return new WaitForSecondsRealtime(firstDisplayDuration);
         yield return HidePanel();
-
         tutorialPanel.SetActive(false);
 
-        // Wait one second after the first tutorial has disappeared.
         yield return new WaitForSecondsRealtime(delayBeforeSecondTutorial);
 
-        // Second tutorial: interaction.
-        SetTutorialContent(firstTutorialContent, secondTutorialContent, false);
+        SetTutorialContent(false);
         yield return ShowPanel();
-
         yield return new WaitForSecondsRealtime(secondDisplayDuration);
         yield return HidePanel();
 
@@ -115,24 +106,19 @@ public class TutorialPanelController : MonoBehaviour
         tutorialCoroutine = null;
     }
 
-    private void SetTutorialContent(
-        GameObject firstContent,
-        GameObject secondContent,
-        bool showFirst)
+    private void SetTutorialContent(bool showFirst)
     {
-        if (firstContent != null)
-            firstContent.SetActive(showFirst);
+        if (firstTutorialContent != null)
+            firstTutorialContent.SetActive(showFirst);
 
-        if (secondContent != null)
-            secondContent.SetActive(!showFirst);
+        if (secondTutorialContent != null)
+            secondTutorialContent.SetActive(!showFirst);
     }
 
     private IEnumerator ShowPanel()
     {
         tutorialPanel.SetActive(true);
-
-        panelRect.anchoredPosition =
-            originalPosition + Vector2.up * slideDistance;
+        panelRect.anchoredPosition = originalPosition + Vector2.up * slideDistance;
         panelRect.localScale = originalScale * startingScale;
         canvasGroup.alpha = 0f;
 
@@ -155,12 +141,9 @@ public class TutorialPanelController : MonoBehaviour
     }
 
     private IEnumerator AnimatePanel(
-        float startAlpha,
-        float endAlpha,
-        Vector2 startPosition,
-        Vector2 endPosition,
-        float startScale,
-        float endScale)
+        float startAlpha, float endAlpha,
+        Vector2 startPosition, Vector2 endPosition,
+        float startScale, float endScale)
     {
         float elapsed = 0f;
 
@@ -168,13 +151,11 @@ public class TutorialPanelController : MonoBehaviour
         {
             elapsed += Time.unscaledDeltaTime;
             float progress = Mathf.Clamp01(elapsed / transitionDuration);
-            float easedProgress = Mathf.SmoothStep(0f, 1f, progress);
+            float eased = Mathf.SmoothStep(0f, 1f, progress);
 
-            canvasGroup.alpha = Mathf.Lerp(startAlpha, endAlpha, easedProgress);
-            panelRect.anchoredPosition =
-                Vector2.Lerp(startPosition, endPosition, easedProgress);
-            panelRect.localScale =
-                originalScale * Mathf.Lerp(startScale, endScale, easedProgress);
+            canvasGroup.alpha = Mathf.Lerp(startAlpha, endAlpha, eased);
+            panelRect.anchoredPosition = Vector2.Lerp(startPosition, endPosition, eased);
+            panelRect.localScale = originalScale * Mathf.Lerp(startScale, endScale, eased);
 
             yield return null;
         }
