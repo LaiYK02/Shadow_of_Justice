@@ -17,7 +17,7 @@ public class OfficerInteraction : MonoBehaviour
     [Header("Interaction Settings")]
     [SerializeField, Min(0.1f)] private float interactionRange = 3f;
     [Tooltip("How wide the camera aiming cone is. Increase this to make aiming easier.")]
-    [SerializeField, Range(1f, 45f)] private float aimAngle = 18f;
+    [SerializeField, Range(1f, 45f)] private float aimAngle = 45f;
     [SerializeField] private LayerMask raycastLayers = ~0;
 
     [Header("First Conversation")]
@@ -55,6 +55,8 @@ public class OfficerInteraction : MonoBehaviour
     private bool firstConversationCompleted;
     private bool waitingForFirstConversationToEnd;
     private Collider officerCollider;
+
+    public event Action FirstConversationCompleted;
 
     private void Awake()
     {
@@ -181,6 +183,8 @@ public class OfficerInteraction : MonoBehaviour
 
         waitingForFirstConversationToEnd = false;
         firstConversationCompleted = true;
+
+        FirstConversationCompleted?.Invoke();
     }
 
     private void SetPromptVisible(bool visible)
