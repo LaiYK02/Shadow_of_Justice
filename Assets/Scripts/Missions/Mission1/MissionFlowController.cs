@@ -1,5 +1,6 @@
 
 using System.Collections;
+using System;
 using TMPro;
 using UnityEngine;
 
@@ -49,6 +50,7 @@ public class MissionFlowController : MonoBehaviour
     private bool sequencePlaying;
 
     public bool CanInteract => missionStarted && !missionCompleted;
+    public event Action MissionCompleted;
 
     private void Awake()
     {
@@ -196,6 +198,7 @@ public class MissionFlowController : MonoBehaviour
         {
             missionCompleted = true;
             Debug.Log("Mission 1 completed!");
+            MissionCompleted?.Invoke();
         }
     }
 
@@ -212,12 +215,18 @@ public class MissionFlowController : MonoBehaviour
             if (i >= objectiveNames.Length)
                 continue;
 
-            string prefix = objectivesCompleted != null &&
-                            objectivesCompleted[i]
-                ? "[X] "
-                : "[ ] ";
+            bool completed = objectivesCompleted != null &&
+                             objectivesCompleted[i];
 
-            objectiveTexts[i].text = prefix + objectiveNames[i];
+            // Preserve the label's other styles (such as bold), but make
+            // strikethrough depend only on whether this objective is complete.
+            FontStyles style = objectiveTexts[i].fontStyle;
+            style &= ~FontStyles.Strikethrough;
+            if (completed)
+                style |= FontStyles.Strikethrough;
+
+            objectiveTexts[i].fontStyle = style;
+            objectiveTexts[i].text = completed ? objectiveNames[i] : "......";
         }
     }
 }

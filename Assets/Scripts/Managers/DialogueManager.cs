@@ -26,6 +26,7 @@ public class DialogueManager : MonoBehaviour
     [SerializeField] private TMP_Text speakerNameText;
     [SerializeField] private TMP_Text dialogueText;
     [SerializeField] private Button continueButton;
+    [SerializeField] private TMP_Text spacePromptText;
 
     [Header("Opening Dialogue")]
     [SerializeField] private DialogueLine[] openingDialogue;
@@ -34,6 +35,9 @@ public class DialogueManager : MonoBehaviour
     private int currentLine;
     private bool isPlaying;
     private bool isOpeningDialogue;
+    private CursorLockMode cursorLockStateBeforeDialogue;
+    private bool cursorVisibleBeforeDialogue;
+    private bool cursorStateSaved;
 
     public bool IsPlaying => isPlaying;
 
@@ -44,16 +48,48 @@ public class DialogueManager : MonoBehaviour
     private void Awake()
     {
         if (continueButton != null)
-            continueButton.onClick.AddListener(AdvanceDialogue);
+            continueButton.gameObject.SetActive(false);
+
+        if (spacePromptText == null && dialoguePanel != null)
+            spacePromptText = CreateSpacePrompt();
+
+        if (spacePromptText != null)
+        {
+            spacePromptText.text = "PRESS SPACE TO SKIP";
+            spacePromptText.gameObject.SetActive(false);
+        }
 
         if (dialoguePanel != null)
             dialoguePanel.SetActive(false);
     }
 
-    private void OnDestroy()
+    private TMP_Text CreateSpacePrompt()
     {
-        if (continueButton != null)
-            continueButton.onClick.RemoveListener(AdvanceDialogue);
+        GameObject promptObject = new GameObject(
+            "SpacePrompt",
+            typeof(RectTransform),
+            typeof(CanvasRenderer),
+            typeof(TextMeshProUGUI));
+        promptObject.transform.SetParent(dialoguePanel.transform, false);
+
+        RectTransform rect = promptObject.GetComponent<RectTransform>();
+        rect.anchorMin = new Vector2(0f, 0f);
+        rect.anchorMax = new Vector2(1f, 0f);
+        rect.pivot = new Vector2(0.5f, 0f);
+        rect.anchoredPosition = new Vector2(0f, 16f);
+        rect.sizeDelta = new Vector2(-32f, 40f);
+
+        TextMeshProUGUI prompt = promptObject.GetComponent<TextMeshProUGUI>();
+        if (dialogueText != null)
+            prompt.font = dialogueText.font;
+        prompt.fontSize = 22f;
+        prompt.fontStyle = FontStyles.Bold;
+        prompt.alignment = TextAlignmentOptions.Center;
+        prompt.color = dialogueText != null ? dialogueText.color : Color.white;
+        prompt.raycastTarget = false;
+        prompt.text = "PRESS SPACE TO SKIP";
+        promptObject.transform.SetAsLastSibling();
+        return prompt;
     }
 
     private void Update()
@@ -98,7 +134,15 @@ public class DialogueManager : MonoBehaviour
         isPlaying = true;
         isOpeningDialogue = opening;
 
+        cursorLockStateBeforeDialogue = Cursor.lockState;
+        cursorVisibleBeforeDialogue = Cursor.visible;
+        cursorStateSaved = true;
+        Cursor.lockState = CursorLockMode.Locked;
+        Cursor.visible = false;
+
         dialoguePanel.SetActive(true);
+        if (spacePromptText != null)
+            spacePromptText.gameObject.SetActive(true);
         ShowCurrentLine();
         DialogueStarted?.Invoke();
     }
@@ -132,8 +176,6 @@ public class DialogueManager : MonoBehaviour
             portraitImage.gameObject.SetActive(line.portrait != null);
         }
 
-        if (continueButton != null)
-            continueButton.interactable = true;
     }
 
     private void EndDialogue()
@@ -147,7 +189,17 @@ public class DialogueManager : MonoBehaviour
         if (dialoguePanel != null)
             dialoguePanel.SetActive(false);
 
+        if (spacePromptText != null)
+            spacePromptText.gameObject.SetActive(false);
+
         DialogueEnded?.Invoke();
+
+        if (cursorStateSaved)
+        {
+            Cursor.lockState = cursorLockStateBeforeDialogue;
+            Cursor.visible = cursorVisibleBeforeDialogue;
+            cursorStateSaved = false;
+        }
 
         if (wasOpeningDialogue)
             OpeningDialogueEnded?.Invoke();

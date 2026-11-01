@@ -44,7 +44,7 @@ public class ThirdPersonCameraLook : MonoBehaviour
         pitch = Mathf.Clamp(pitch, minimumPitch, maximumPitch);
 
         controlsUnlocked = false;
-        SetCursorState(false);
+        SetCursorState(true);
     }
 
     private void OnEnable()
@@ -64,7 +64,7 @@ public class ThirdPersonCameraLook : MonoBehaviour
             dialogueManager.DialogueEnded -= HandleDialogueEnded;
         }
 
-        SetCursorState(false);
+        SetCursorState(true);
     }
 
     private void Update()
@@ -108,7 +108,7 @@ public class ThirdPersonCameraLook : MonoBehaviour
     private void HandleDialogueStarted()
     {
         controlsUnlocked = false;
-        SetCursorState(false);
+        SetCursorState(true);
     }
 
     private void HandleDialogueEnded()

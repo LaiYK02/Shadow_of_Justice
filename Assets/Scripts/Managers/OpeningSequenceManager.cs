@@ -74,6 +74,9 @@ public class OpeningSequenceManager : MonoBehaviour,
             return;
         }
 
+        Cursor.lockState = CursorLockMode.Locked;
+        Cursor.visible = false;
+
         openingPanel.SetActive(true);
 
         currentParagraph = 0;
