@@ -14,6 +14,7 @@ public class PlayerMovement : MonoBehaviour
 
     [Header("Movement")]
     [SerializeField, Min(0f)] private float moveSpeed = 5f;
+    [SerializeField, Min(0f)] private float sprintSpeed = 10f;
     [SerializeField] private float gravity = -20f;
 
     private CharacterController characterController;
@@ -77,8 +78,9 @@ public class PlayerMovement : MonoBehaviour
 
         verticalVelocity += gravity * Time.deltaTime;
 
+        float currentSpeed = SprintPressed() ? sprintSpeed : moveSpeed;
         Vector3 movement =
-            moveDirection * moveSpeed +
+            moveDirection * currentSpeed +
             Vector3.up * verticalVelocity;
 
         characterController.Move(movement * Time.deltaTime);
@@ -110,6 +112,21 @@ public class PlayerMovement : MonoBehaviour
         );
 #else
         return Vector2.zero;
+#endif
+    }
+
+    private bool SprintPressed()
+    {
+#if ENABLE_INPUT_SYSTEM
+        if (Keyboard.current != null &&
+            (Keyboard.current.leftShiftKey.isPressed || Keyboard.current.rightShiftKey.isPressed))
+            return true;
+#endif
+
+#if ENABLE_LEGACY_INPUT_MANAGER
+        return Input.GetKey(KeyCode.LeftShift) || Input.GetKey(KeyCode.RightShift);
+#else
+        return false;
 #endif
     }
 

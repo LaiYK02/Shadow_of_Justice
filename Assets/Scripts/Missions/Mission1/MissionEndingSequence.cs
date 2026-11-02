@@ -8,6 +8,7 @@ public class MissionEndingSequence : MonoBehaviour
     [Header("Sequence References")]
     [SerializeField] private MissionFlowController missionFlow;
     [SerializeField] private DialogueManager dialogueManager;
+    [SerializeField] private TutorialPanelController tutorialPanelController;
     [SerializeField] private CinemachineBrain cameraBrain;
     [SerializeField] private CinemachineCamera playerFollowCamera;
     [SerializeField] private CinemachineCamera suspectStaticCamera;
@@ -144,6 +145,7 @@ public class MissionEndingSequence : MonoBehaviour
 
         cameraBrain.DefaultBlend = originalBlend;
         RestorePlayerControls();
+        tutorialPanelController?.ShowChaseTutorial();
     }
 
     private IEnumerator MoveSuspectToEscapePoint()

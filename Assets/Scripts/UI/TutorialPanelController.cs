@@ -11,11 +11,13 @@ public class TutorialPanelController : MonoBehaviour
     [Header("Tutorial Content")]
     [SerializeField] private GameObject firstTutorialContent;
     [SerializeField] private GameObject secondTutorialContent;
+    [SerializeField] private GameObject thirdTutorialContent;
 
     [Header("Display Settings")]
     [SerializeField, Min(0f)] private float firstDisplayDuration = 10f;
     [SerializeField, Min(0f)] private float delayBeforeSecondTutorial = 1f;
     [SerializeField, Min(0f)] private float secondDisplayDuration = 5f;
+    [SerializeField, Min(0f)] private float thirdDisplayDuration = 6f;
 
     [Header("Transition Settings")]
     [SerializeField, Min(0.01f)] private float transitionDuration = 0.4f;
@@ -56,6 +58,9 @@ public class TutorialPanelController : MonoBehaviour
 
         if (secondTutorialContent != null)
             secondTutorialContent.SetActive(false);
+
+        if (thirdTutorialContent != null)
+            thirdTutorialContent.SetActive(false);
     }
 
     private void OnEnable()
@@ -82,6 +87,40 @@ public class TutorialPanelController : MonoBehaviour
             StopCoroutine(tutorialCoroutine);
 
         tutorialCoroutine = StartCoroutine(PlayTutorialSequence());
+    }
+
+    public void ShowChaseTutorial()
+    {
+        if (thirdTutorialContent == null || tutorialPanel == null || canvasGroup == null)
+        {
+            Debug.LogWarning("TutorialPanelController: Assign the third tutorial content.", this);
+            return;
+        }
+
+        if (tutorialCoroutine != null)
+            StopCoroutine(tutorialCoroutine);
+
+        tutorialCoroutine = StartCoroutine(PlayChaseTutorial());
+    }
+
+    private IEnumerator PlayChaseTutorial()
+    {
+        if (firstTutorialContent != null)
+            firstTutorialContent.SetActive(false);
+        if (secondTutorialContent != null)
+            secondTutorialContent.SetActive(false);
+        thirdTutorialContent.SetActive(true);
+
+        yield return ShowPanel();
+        yield return new WaitForSecondsRealtime(thirdDisplayDuration);
+        yield return HidePanel();
+
+        tutorialPanel.SetActive(false);
+        thirdTutorialContent.SetActive(false);
+        panelRect.anchoredPosition = originalPosition;
+        panelRect.localScale = originalScale;
+        canvasGroup.alpha = 0f;
+        tutorialCoroutine = null;
     }
 
     private IEnumerator PlayTutorialSequence()
