@@ -8,6 +8,7 @@ public class MissionFlowController : MonoBehaviour
 {
     [Header("References")]
     [SerializeField] private OfficerInteraction fellowOfficer;
+    [SerializeField] private DialogueManager dialogueManager;
 
     [Header("Mission Start Panel")]
     [SerializeField] private GameObject missionStartPanel;
@@ -17,7 +18,10 @@ public class MissionFlowController : MonoBehaviour
 
     [Header("Mission Objectives Panel")]
     [SerializeField] private GameObject missionPanel;
+    [SerializeField] private GameObject missionTitle;
+    [SerializeField] private GameObject missionTitleDivider;
     [SerializeField] private TMP_Text[] objectiveTexts;
+    [SerializeField] private TMP_Text chaseObjectiveText;
 
     [Header("Mission Details")]
     [SerializeField] private string missionNumber = "MISSION 1";
@@ -50,6 +54,7 @@ public class MissionFlowController : MonoBehaviour
     private bool sequencePlaying;
 
     public bool CanInteract => missionStarted && !missionCompleted;
+    public bool IsMissionStartSequencePlaying => sequencePlaying;
     public event Action MissionCompleted;
 
     private void Awake()
@@ -68,6 +73,12 @@ public class MissionFlowController : MonoBehaviour
         if (missionNameText != null)
             missionNameText.text = missionName;
 
+        if (chaseObjectiveText != null)
+        {
+            chaseObjectiveText.text = "......";
+            chaseObjectiveText.fontStyle &= ~FontStyles.Strikethrough;
+        }
+
         RefreshObjectiveTexts();
     }
 
@@ -75,12 +86,33 @@ public class MissionFlowController : MonoBehaviour
     {
         if (fellowOfficer != null)
             fellowOfficer.FirstConversationCompleted += StartMissionSequence;
+        if (dialogueManager != null)
+            dialogueManager.OpeningDialogueEnded += ShowTalkToOfficerObjective;
     }
 
     private void OnDisable()
     {
         if (fellowOfficer != null)
             fellowOfficer.FirstConversationCompleted -= StartMissionSequence;
+        if (dialogueManager != null)
+            dialogueManager.OpeningDialogueEnded -= ShowTalkToOfficerObjective;
+    }
+
+    private void ShowTalkToOfficerObjective()
+    {
+        if (missionStarted || sequencePlaying || missionPanel == null || chaseObjectiveText == null)
+            return;
+
+        HideEvidenceObjectives();
+        if (missionTitle != null)
+            missionTitle.SetActive(false);
+        if (missionTitleDivider != null)
+            missionTitleDivider.SetActive(false);
+        SetChaseObjectiveRowPositionAtTop();
+        chaseObjectiveText.text = "Talk to the Fellow Officer";
+        chaseObjectiveText.fontStyle &= ~FontStyles.Strikethrough;
+        chaseObjectiveText.transform.parent.gameObject.SetActive(true);
+        missionPanel.SetActive(true);
     }
 
     public void StartMissionSequence()
@@ -88,13 +120,12 @@ public class MissionFlowController : MonoBehaviour
         if (sequencePlaying || missionStarted)
             return;
 
+        sequencePlaying = true;
         StartCoroutine(MissionStartRoutine());
     }
 
     private IEnumerator MissionStartRoutine()
     {
-        sequencePlaying = true;
-
         if (missionPanel != null)
             missionPanel.SetActive(false);
 
@@ -129,6 +160,12 @@ public class MissionFlowController : MonoBehaviour
 
         if (missionPanel != null)
             missionPanel.SetActive(true);
+
+        if (missionTitle != null)
+            missionTitle.SetActive(true);
+        if (missionTitleDivider != null)
+            missionTitleDivider.SetActive(true);
+        ShowEvidenceObjectives();
 
         missionStarted = true;
         sequencePlaying = false;
@@ -199,6 +236,68 @@ public class MissionFlowController : MonoBehaviour
             missionCompleted = true;
             Debug.Log("Mission 1 completed!");
             MissionCompleted?.Invoke();
+        }
+    }
+
+    public void ActivateChaseObjective()
+    {
+        if (chaseObjectiveText == null)
+        {
+            Debug.LogWarning("MissionFlowController: Assign the chase objective text.", this);
+            return;
+        }
+
+        Transform chaseRow = chaseObjectiveText.transform.parent;
+        if (chaseRow != null)
+        {
+            chaseRow.gameObject.SetActive(true);
+            SetChaseObjectiveRowPositionAtTop();
+        }
+
+        chaseObjectiveText.text = "Chase and hit the Suspect";
+        chaseObjectiveText.fontStyle &= ~FontStyles.Strikethrough;
+    }
+
+    public void HideEvidenceObjectives()
+    {
+        if (objectiveTexts == null)
+            return;
+
+        foreach (TMP_Text objectiveText in objectiveTexts)
+        {
+            if (objectiveText != null && objectiveText.transform.parent != null)
+                objectiveText.transform.parent.gameObject.SetActive(false);
+        }
+    }
+
+    private void ShowEvidenceObjectives()
+    {
+        if (objectiveTexts != null)
+        {
+            foreach (TMP_Text objectiveText in objectiveTexts)
+            {
+                if (objectiveText != null && objectiveText.transform.parent != null)
+                    objectiveText.transform.parent.gameObject.SetActive(true);
+            }
+        }
+
+        if (chaseObjectiveText != null && chaseObjectiveText.transform.parent != null)
+        {
+            chaseObjectiveText.text = "......";
+            chaseObjectiveText.transform.parent.gameObject.SetActive(false);
+        }
+    }
+
+    private void SetChaseObjectiveRowPositionAtTop()
+    {
+        if (chaseObjectiveText == null || objectiveTexts == null || objectiveTexts.Length == 0 ||
+            objectiveTexts[0] == null)
+            return;
+
+        if (chaseObjectiveText.transform.parent is RectTransform chaseRect &&
+            objectiveTexts[0].transform.parent is RectTransform firstRowRect)
+        {
+            chaseRect.anchoredPosition = firstRowRect.anchoredPosition;
         }
     }
 

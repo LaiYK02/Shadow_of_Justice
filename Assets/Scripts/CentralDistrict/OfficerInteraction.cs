@@ -8,6 +8,7 @@ using UnityEngine.InputSystem;
 public class OfficerInteraction : PlayerInteractable
 {
     [SerializeField] private DialogueManager dialogueManager;
+    [SerializeField] private MissionFlowController missionFlow;
     [SerializeField]
     private DialogueLine[] firstConversation =
     {
@@ -25,7 +26,9 @@ public class OfficerInteraction : PlayerInteractable
     private bool waitingForFirstConversationToEnd;
     public event Action FirstConversationCompleted;
 
-    public override bool CanInteract => dialogueManager != null && !dialogueManager.IsPlaying;
+    public override bool CanInteract => dialogueManager != null &&
+        !dialogueManager.IsPlaying &&
+        (missionFlow == null || !missionFlow.IsMissionStartSequencePlaying);
 
     protected override void OnEnable()
     {
@@ -43,6 +46,7 @@ public class OfficerInteraction : PlayerInteractable
     {
         base.Start();
         if (dialogueManager == null) Debug.LogError("OfficerInteraction: Assign DialogueManager.", this);
+        if (missionFlow == null) Debug.LogError("OfficerInteraction: Assign MissionFlowController.", this);
     }
 
     public override void Interact()

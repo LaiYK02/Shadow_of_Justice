@@ -124,9 +124,12 @@ public class MissionEndingSequence : MonoBehaviour
         // Let Cinemachine finish the move before showing the first dialogue line.
         yield return new WaitForSecondsRealtime(cameraBlendDuration);
 
+        missionFlow.HideEvidenceObjectives();
         dialogueManager.StartDialogue(suspectDialogue);
         while (dialogueManager.IsPlaying)
             yield return null;
+
+        missionFlow.ActivateChaseObjective();
 
         // Start the escape, then return to the normal camera after the requested
         // two seconds while the suspect continues running to the marker.
