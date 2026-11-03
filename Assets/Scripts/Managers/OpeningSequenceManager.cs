@@ -15,6 +15,7 @@ public class OpeningSequenceManager : MonoBehaviour,
     [SerializeField] private TMP_Text openingText;
     [SerializeField] private TMP_Text skipHintText;
     [SerializeField] private TypewriterEffect typewriter;
+    [SerializeField] private PlayerHUDController playerHUD;
 
     [Header("Timing")]
     [SerializeField, Min(0f)]
@@ -76,6 +77,8 @@ public class OpeningSequenceManager : MonoBehaviour,
 
         Cursor.lockState = CursorLockMode.Locked;
         Cursor.visible = false;
+        if (playerHUD != null)
+            playerHUD.SetCutsceneActive(true);
 
         openingPanel.SetActive(true);
 

@@ -33,7 +33,9 @@ public class ThirdPersonCameraLook : MonoBehaviour
         }
 
         // Preserve the target's starting orientation.
-        Vector3 angles = cameraTarget.localEulerAngles;
+        // Keep camera yaw in world space so turning the player root does not
+        // rotate the camera with the character.
+        Vector3 angles = cameraTarget.eulerAngles;
 
         yaw = angles.y;
         pitch = angles.x;
@@ -82,9 +84,17 @@ public class ThirdPersonCameraLook : MonoBehaviour
 
         pitch += verticalInput * sensitivity;
         pitch = Mathf.Clamp(pitch, minimumPitch, maximumPitch);
+    }
+
+    private void LateUpdate()
+    {
+        if (!controlsUnlocked || cameraTarget == null)
+            return;
 
         // Rotate only the camera target, not the Player model.
-        cameraTarget.localRotation =
+        // LateUpdate applies world rotation after PlayerMovement has rotated
+        // the parent, preventing the target and player from fighting each frame.
+        cameraTarget.rotation =
             Quaternion.Euler(pitch, yaw, 0f);
     }
 

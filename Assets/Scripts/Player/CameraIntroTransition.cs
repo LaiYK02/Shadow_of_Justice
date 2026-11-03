@@ -8,6 +8,7 @@ public class CameraIntroTransition : MonoBehaviour
     [Header("Cinemachine Cameras")]
     [SerializeField] private CinemachineCamera introCamera;
     [SerializeField] private CinemachineCamera playerFollowCamera;
+    [SerializeField] private PlayerHUDController playerHUD;
 
     [Header("Camera Position Markers")]
     [SerializeField] private Transform introStart;
@@ -101,6 +102,9 @@ public class CameraIntroTransition : MonoBehaviour
         // Switch to the third-person camera.
         introCamera.Priority = 0;
         playerFollowCamera.Priority = 20;
+
+        if (playerHUD != null)
+            playerHUD.SetCutsceneActive(false);
 
         // Start the sheriff's dialogue.
         onTransitionFinished?.Invoke();

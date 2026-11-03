@@ -9,10 +9,12 @@ public class MissionEndingSequence : MonoBehaviour
     [SerializeField] private MissionFlowController missionFlow;
     [SerializeField] private DialogueManager dialogueManager;
     [SerializeField] private TutorialPanelController tutorialPanelController;
+    [SerializeField] private PlayerHUDController playerHUD;
     [SerializeField] private CinemachineBrain cameraBrain;
     [SerializeField] private CinemachineCamera playerFollowCamera;
     [SerializeField] private CinemachineCamera suspectStaticCamera;
     [SerializeField] private Transform suspectToMove;
+    [SerializeField] private SuspectEscapeTarget suspectEscapeTarget;
     [SerializeField] private Transform escapeDestination;
 
     [Header("Player Controls")]
@@ -92,6 +94,7 @@ public class MissionEndingSequence : MonoBehaviour
             return;
 
         sequenceStarted = true;
+        playerHUD?.SetCutsceneActive(true);
         StartCoroutine(PlaySequence());
     }
 
@@ -134,6 +137,7 @@ public class MissionEndingSequence : MonoBehaviour
 
         // Start the escape, then return to the normal camera after the requested
         // two seconds while the suspect continues running to the marker.
+        suspectEscapeTarget.BeginEscape();
         StartCoroutine(MoveSuspectToEscapePoint());
         if (escapeCameraHoldDuration > 0f)
             yield return new WaitForSecondsRealtime(escapeCameraHoldDuration);
@@ -145,6 +149,7 @@ public class MissionEndingSequence : MonoBehaviour
 
         cameraBrain.DefaultBlend = originalBlend;
         RestorePlayerControls();
+        playerHUD?.SetCutsceneActive(false);
         tutorialPanelController?.ShowChaseTutorial();
     }
 
@@ -154,7 +159,8 @@ public class MissionEndingSequence : MonoBehaviour
         // Treat the marker as a horizontal destination so the suspect keeps its ground height.
         destination.y = suspectToMove.position.y;
 
-        while (Vector3.Distance(suspectToMove.position, destination) > arrivalDistance)
+        while (!suspectEscapeTarget.IsStopped &&
+               Vector3.Distance(suspectToMove.position, destination) > arrivalDistance)
         {
             Vector3 toDestination = destination - suspectToMove.position;
             Vector3 flatDirection = Vector3.ProjectOnPlane(toDestination, Vector3.up);
@@ -176,7 +182,8 @@ public class MissionEndingSequence : MonoBehaviour
             yield return null;
         }
 
-        suspectToMove.position = destination;
+        if (!suspectEscapeTarget.IsStopped)
+            suspectToMove.position = destination;
     }
 
     private void LockPlayerControls()
