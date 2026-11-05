@@ -76,6 +76,15 @@ public sealed class SettingsPanelController : MonoBehaviour
             return;
         }
 
+        AddAudioFeedback(gameplayTabButton.gameObject);
+        AddAudioFeedback(audioTabButton.gameObject);
+        AddAudioFeedback(backButton.gameObject);
+        AddAudioFeedback(mouseXSensitivitySlider.gameObject);
+        AddAudioFeedback(mouseYSensitivitySlider.gameObject);
+        AddAudioFeedback(masterVolumeSlider.gameObject);
+        AddAudioFeedback(bgmVolumeSlider.gameObject);
+        AddAudioFeedback(sfxVolumeSlider.gameObject);
+
         gameplayTabButton.onClick.AddListener(ShowGameplaySettings);
         audioTabButton.onClick.AddListener(ShowAudioSettings);
         backButton.onClick.AddListener(BackToMainMenu);
@@ -208,5 +217,11 @@ public sealed class SettingsPanelController : MonoBehaviour
         }
 
         return null;
+    }
+
+    private static void AddAudioFeedback(GameObject target)
+    {
+        if (target.GetComponent<MenuUIAudioFeedback>() == null)
+            target.AddComponent<MenuUIAudioFeedback>();
     }
 }

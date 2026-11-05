@@ -13,6 +13,12 @@ public class MainMenuManager : MonoBehaviour
     [Header("Settings")]
     [SerializeField] private AudioMixer audioMixer;
 
+    [Header("Main Menu Audio")]
+    [SerializeField] private AudioClip mainMenuBGM1;
+    [SerializeField] private AudioClip mainMenuBGM2;
+    [SerializeField] private AudioClip buttonHoverClip;
+    [SerializeField] private AudioClip buttonPressClip;
+
     private SettingsPanelController settingsPanelController;
 
     private void Awake()
@@ -32,6 +38,17 @@ public class MainMenuManager : MonoBehaviour
         {
             settingsService.ConfigureMixer(audioMixer);
         }
+
+        MainMenuAudioController menuAudio = GetComponent<MainMenuAudioController>();
+        if (menuAudio == null)
+            menuAudio = gameObject.AddComponent<MainMenuAudioController>();
+
+        menuAudio.Initialize(
+            audioMixer,
+            mainMenuBGM1,
+            mainMenuBGM2,
+            buttonHoverClip,
+            buttonPressClip);
 
         settingsPanelController = GetComponent<SettingsPanelController>();
         if (settingsPanelController == null)

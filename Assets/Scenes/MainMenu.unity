@@ -7319,6 +7319,10 @@ MonoBehaviour:
   sceneLoader: {fileID: 1889657717}
   gameSceneName: CentralDistrict
   audioMixer: {fileID: 24100000, guid: f47396a425abc6848a9bf4088333e965, type: 2}
+  mainMenuBGM1: {fileID: 8300000, guid: dbe80518076010946bf66b31afc41726, type: 3}
+  mainMenuBGM2: {fileID: 8300000, guid: 3b7901ab72ecc514fbd7f2be9020c90d, type: 3}
+  buttonHoverClip: {fileID: 8300000, guid: 25f8c96d459a7554d9ba9af7fd5c4265, type: 3}
+  buttonPressClip: {fileID: 8300000, guid: 17ce75497d7408e4681479224b93b486, type: 3}
 --- !u!114 &1889657717
 MonoBehaviour:
   m_ObjectHideFlags: 0

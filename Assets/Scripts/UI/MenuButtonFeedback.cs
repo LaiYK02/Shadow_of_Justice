@@ -47,6 +47,7 @@ public class MenuButtonFeedback : MonoBehaviour,
     {
         isHovered = true;
         UpdateVisuals();
+        MainMenuAudioController.Instance?.PlayHover();
     }
 
     public void OnPointerExit(PointerEventData eventData)
@@ -63,6 +64,7 @@ public class MenuButtonFeedback : MonoBehaviour,
 
         isPressed = true;
         UpdateVisuals();
+        MainMenuAudioController.Instance?.PlayPress();
     }
 
     public void OnPointerUp(PointerEventData eventData)
