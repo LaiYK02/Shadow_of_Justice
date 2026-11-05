@@ -9,6 +9,7 @@ public class MissionFlowController : MonoBehaviour
     [Header("References")]
     [SerializeField] private OfficerInteraction fellowOfficer;
     [SerializeField] private DialogueManager dialogueManager;
+    [SerializeField] private PlayerHUDController playerHUD;
 
     [Header("Mission Start Panel")]
     [SerializeField] private GameObject missionStartPanel;
@@ -131,6 +132,7 @@ public class MissionFlowController : MonoBehaviour
 
         if (missionStartPanel != null)
         {
+            playerHUD?.SetMissionStartActive(true);
             missionStartPanel.SetActive(true);
 
             if (missionStartCanvasGroup != null)
@@ -156,6 +158,7 @@ public class MissionFlowController : MonoBehaviour
             }
 
             missionStartPanel.SetActive(false);
+            playerHUD?.SetMissionStartActive(false);
         }
 
         if (missionPanel != null)

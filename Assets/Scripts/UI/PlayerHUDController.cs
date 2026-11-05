@@ -9,6 +9,7 @@ public class PlayerHUDController : MonoBehaviour
     private bool dialogueActive;
     private bool cutsceneActive;
     private bool choiceActive;
+    private bool missionStartActive;
 
     private void OnEnable()
     {
@@ -42,6 +43,12 @@ public class PlayerHUDController : MonoBehaviour
         RefreshVisibility();
     }
 
+    public void SetMissionStartActive(bool active)
+    {
+        missionStartActive = active;
+        RefreshVisibility();
+    }
+
     private void HandleDialogueStarted()
     {
         dialogueActive = true;
@@ -56,7 +63,7 @@ public class PlayerHUDController : MonoBehaviour
 
     private void RefreshVisibility()
     {
-        bool visible = !dialogueActive && !cutsceneActive && !choiceActive;
+        bool visible = !dialogueActive && !cutsceneActive && !choiceActive && !missionStartActive;
         if (hudElements == null)
             return;
 

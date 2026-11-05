@@ -10,6 +10,10 @@ using UnityEngine.InputSystem;
 [RequireComponent(typeof(CharacterController))]
 public class PlayerMovement : MonoBehaviour
 {
+    private static readonly int IsMovingParameter = Animator.StringToHash("IsMoving");
+    private static readonly int IsSprintingParameter = Animator.StringToHash("IsSprinting");
+    private static readonly int IsAttackingParameter = Animator.StringToHash("IsAttacking");
+
     [Header("References")]
     [SerializeField] private Transform cameraTarget;
     [SerializeField] private DialogueManager dialogueManager;
@@ -27,6 +31,7 @@ public class PlayerMovement : MonoBehaviour
     [SerializeField] private float gravity = -20f;
 
     private CharacterController characterController;
+    private Animator playerAnimator;
     private float verticalVelocity;
     private bool controlsUnlocked;
     private bool hasStarted;
@@ -35,6 +40,10 @@ public class PlayerMovement : MonoBehaviour
     private void Awake()
     {
         characterController = GetComponent<CharacterController>();
+        playerAnimator = GetComponentInChildren<Animator>(true);
+
+        if (playerAnimator == null)
+            Debug.LogWarning("PlayerMovement: No child Animator was found; player movement will continue without animations.", this);
     }
 
     private void OnEnable()
@@ -68,7 +77,10 @@ public class PlayerMovement : MonoBehaviour
     private void Update()
     {
         if (!controlsUnlocked || cameraTarget == null)
+        {
+            UpdateAnimationParameters(false, false, false);
             return;
+        }
 
         if (AttackPressed() && !isAttacking)
         {
@@ -78,7 +90,10 @@ public class PlayerMovement : MonoBehaviour
         }
 
         if (isAttacking)
+        {
+            UpdateAnimationParameters(false, false, true);
             return;
+        }
 
         Vector2 input = ReadMovementInput();
 
@@ -115,6 +130,9 @@ public class PlayerMovement : MonoBehaviour
         bool tryingToSprint = SprintPressed() && input.sqrMagnitude > 0.001f;
         bool hasEnergy = energyBar == null || energyBar.value > 0f;
         bool sprinting = tryingToSprint && hasEnergy;
+        bool isMoving = input.sqrMagnitude > 0.001f;
+
+        UpdateAnimationParameters(isMoving, sprinting, false);
 
         if (energyBar != null)
         {
@@ -203,11 +221,13 @@ public class PlayerMovement : MonoBehaviour
     private IEnumerator AttackRoutine()
     {
         isAttacking = true;
+        UpdateAnimationParameters(false, false, true);
         attackHitbox.SetAttackActive(true);
         yield return new WaitForSeconds(attackDuration);
         if (attackHitbox != null)
             attackHitbox.SetAttackActive(false);
         isAttacking = false;
+        UpdateAnimationParameters(false, false, false);
     }
 
     private void HandleDialogueStarted()
@@ -216,10 +236,21 @@ public class PlayerMovement : MonoBehaviour
         if (attackHitbox != null)
             attackHitbox.SetAttackActive(false);
         isAttacking = false;
+        UpdateAnimationParameters(false, false, false);
     }
 
     private void HandleDialogueEnded()
     {
         controlsUnlocked = true;
+    }
+
+    private void UpdateAnimationParameters(bool isMoving, bool isSprinting, bool isAttackingNow)
+    {
+        if (playerAnimator == null)
+            return;
+
+        playerAnimator.SetBool(IsMovingParameter, isMoving);
+        playerAnimator.SetBool(IsSprintingParameter, isSprinting);
+        playerAnimator.SetBool(IsAttackingParameter, isAttackingNow);
     }
 }
