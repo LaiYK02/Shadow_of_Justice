@@ -270,6 +270,12 @@ public class MissionFlowController : MonoBehaviour
         }
     }
 
+    public void HideMissionPanel()
+    {
+        if (missionPanel != null)
+            missionPanel.SetActive(false);
+    }
+
     private void ShowEvidenceObjectives()
     {
         if (objectiveTexts != null)

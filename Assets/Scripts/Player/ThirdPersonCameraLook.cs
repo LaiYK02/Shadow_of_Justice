@@ -76,13 +76,21 @@ public class ThirdPersonCameraLook : MonoBehaviour
 
         Vector2 mouseDelta = ReadMouseDelta();
 
-        yaw += mouseDelta.x * sensitivity;
+        GameSettingsService settings = GameSettingsService.Instance;
+        float horizontalSensitivity = settings != null
+            ? settings.MouseSensitivityX
+            : sensitivity;
+        float verticalSensitivity = settings != null
+            ? settings.MouseSensitivityY
+            : sensitivity;
+
+        yaw += mouseDelta.x * horizontalSensitivity;
 
         float verticalInput = invertY
             ? mouseDelta.y
             : -mouseDelta.y;
 
-        pitch += verticalInput * sensitivity;
+        pitch += verticalInput * verticalSensitivity;
         pitch = Mathf.Clamp(pitch, minimumPitch, maximumPitch);
     }
 

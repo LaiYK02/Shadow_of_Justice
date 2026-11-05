@@ -8,6 +8,7 @@ public class PlayerHUDController : MonoBehaviour
 
     private bool dialogueActive;
     private bool cutsceneActive;
+    private bool choiceActive;
 
     private void OnEnable()
     {
@@ -35,6 +36,12 @@ public class PlayerHUDController : MonoBehaviour
         RefreshVisibility();
     }
 
+    public void SetChoiceActive(bool active)
+    {
+        choiceActive = active;
+        RefreshVisibility();
+    }
+
     private void HandleDialogueStarted()
     {
         dialogueActive = true;
@@ -49,7 +56,7 @@ public class PlayerHUDController : MonoBehaviour
 
     private void RefreshVisibility()
     {
-        bool visible = !dialogueActive && !cutsceneActive;
+        bool visible = !dialogueActive && !cutsceneActive && !choiceActive;
         if (hudElements == null)
             return;
 

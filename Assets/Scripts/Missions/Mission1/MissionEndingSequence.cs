@@ -1,5 +1,6 @@
 using System.Collections;
 using Unity.Cinemachine;
+using TMPro;
 using UnityEngine;
 
 /// <summary>Plays the first mission's suspect reveal and escape sequence.</summary>
@@ -16,6 +17,11 @@ public class MissionEndingSequence : MonoBehaviour
     [SerializeField] private Transform suspectToMove;
     [SerializeField] private SuspectEscapeTarget suspectEscapeTarget;
     [SerializeField] private Transform escapeDestination;
+    [SerializeField] private GameObject choicePanel;
+    [SerializeField] private TMP_Text arrestChoiceText;
+    [SerializeField] private TMP_Text letGoChoiceText;
+    [SerializeField] private string arrestChoiceLabel = "Arrest him";
+    [SerializeField] private string letGoChoiceLabel = "Let him go";
 
     [Header("Player Controls")]
     [Tooltip("Assign PlayerMovement and ThirdPersonCameraLook so controls stay locked for the full cutscene.")]
@@ -45,6 +51,20 @@ public class MissionEndingSequence : MonoBehaviour
         }
     };
 
+    [SerializeField] private DialogueLine[] caughtSuspectDialogue =
+    {
+        new DialogueLine
+        {
+            speakerName = "Suspicious Person",
+            dialogueText = "Please, let me go. I can pay you well if you look the other way."
+        },
+        new DialogueLine
+        {
+            speakerName = "Suspicious Person",
+            dialogueText = "Take the money and forget you ever saw me."
+        }
+    };
+
     private bool sequenceStarted;
     private CinemachineBlendDefinition originalBlend;
     private int originalPlayerCameraPriority;
@@ -53,6 +73,9 @@ public class MissionEndingSequence : MonoBehaviour
 
     private void Awake()
     {
+        if (choicePanel != null)
+            choicePanel.SetActive(false);
+
         if (cameraBrain != null)
             originalBlend = cameraBrain.DefaultBlend;
 
@@ -103,7 +126,9 @@ public class MissionEndingSequence : MonoBehaviour
         bool valid = missionFlow != null && dialogueManager != null &&
                      cameraBrain != null && playerFollowCamera != null &&
                      suspectStaticCamera != null && suspectToMove != null &&
-                     escapeDestination != null;
+                     suspectEscapeTarget != null && escapeDestination != null &&
+                     choicePanel != null && arrestChoiceText != null &&
+                     letGoChoiceText != null;
 
         if (!valid)
             Debug.LogError("MissionEndingSequence: Assign all sequence references in the Inspector.", this);
@@ -139,6 +164,7 @@ public class MissionEndingSequence : MonoBehaviour
         // two seconds while the suspect continues running to the marker.
         suspectEscapeTarget.BeginEscape();
         StartCoroutine(MoveSuspectToEscapePoint());
+        StartCoroutine(WaitForSuspectToBeCaught());
         if (escapeCameraHoldDuration > 0f)
             yield return new WaitForSecondsRealtime(escapeCameraHoldDuration);
 
@@ -151,6 +177,34 @@ public class MissionEndingSequence : MonoBehaviour
         RestorePlayerControls();
         playerHUD?.SetCutsceneActive(false);
         tutorialPanelController?.ShowChaseTutorial();
+    }
+
+    private IEnumerator WaitForSuspectToBeCaught()
+    {
+        while (!suspectEscapeTarget.IsStopped)
+            yield return null;
+
+        LockPlayerControls();
+        dialogueManager.StartDialogue(caughtSuspectDialogue);
+        while (dialogueManager.IsPlaying)
+            yield return null;
+
+        ShowChoiceButtons();
+    }
+
+    private void ShowChoiceButtons()
+    {
+        if (choicePanel == null || arrestChoiceText == null || letGoChoiceText == null)
+            return;
+
+        arrestChoiceText.text = arrestChoiceLabel;
+        letGoChoiceText.text = letGoChoiceLabel;
+        missionFlow.HideMissionPanel();
+        playerHUD?.SetChoiceActive(true);
+        choicePanel.SetActive(true);
+
+        Cursor.lockState = CursorLockMode.None;
+        Cursor.visible = true;
     }
 
     private IEnumerator MoveSuspectToEscapePoint()
