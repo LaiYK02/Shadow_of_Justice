@@ -14,16 +14,24 @@ public class PlayerInteractionManager : MonoBehaviour
     [SerializeField] private KeyCode interactionKey = KeyCode.E;
 
     private PlayerInteractable selected;
+    private CharacterCombat playerCombat;
     public PlayerInteractable Selected => selected;
 
     private void Start()
     {
         if (player == null) Debug.LogError("PlayerInteractionManager: Assign Player.", this);
+        else playerCombat = player.GetComponent<CharacterCombat>();
         if (playerCamera == null) Debug.LogError("PlayerInteractionManager: Assign Player Camera.", this);
     }
 
     private void Update()
     {
+        if (playerCombat != null && playerCombat.IsDead)
+        {
+            SetSelected(null);
+            return;
+        }
+
         SelectBest();
         if (selected != null && InteractPressed())
         {

@@ -70,9 +70,13 @@ public class MissionEndingSequence : MonoBehaviour
     private int originalPlayerCameraPriority;
     private int originalSuspectCameraPriority;
     private bool[] controlsWereEnabled;
+    private CharacterCombat suspectCombat;
 
     private void Awake()
     {
+        if (suspectToMove != null)
+            suspectCombat = suspectToMove.GetComponentInParent<CharacterCombat>();
+
         if (choicePanel != null)
             choicePanel.SetActive(false);
 
@@ -154,7 +158,7 @@ public class MissionEndingSequence : MonoBehaviour
         yield return new WaitForSecondsRealtime(cameraBlendDuration);
 
         missionFlow.HideEvidenceObjectives();
-        dialogueManager.StartDialogue(suspectDialogue);
+        dialogueManager.StartDialogue(suspectDialogue, suspectCombat);
         while (dialogueManager.IsPlaying)
             yield return null;
 
@@ -184,8 +188,11 @@ public class MissionEndingSequence : MonoBehaviour
         while (!suspectEscapeTarget.IsStopped)
             yield return null;
 
+        while (suspectCombat != null && suspectCombat.IsHitReacting)
+            yield return null;
+
         LockPlayerControls();
-        dialogueManager.StartDialogue(caughtSuspectDialogue);
+        dialogueManager.StartDialogue(caughtSuspectDialogue, suspectCombat);
         while (dialogueManager.IsPlaying)
             yield return null;
 
@@ -216,6 +223,16 @@ public class MissionEndingSequence : MonoBehaviour
         while (!suspectEscapeTarget.IsStopped &&
                Vector3.Distance(suspectToMove.position, destination) > arrivalDistance)
         {
+            if (suspectCombat != null && !suspectCombat.CanAct)
+            {
+                if (suspectCombat.IsDead)
+                    yield break;
+
+                yield return null;
+                continue;
+            }
+
+            suspectCombat?.SetLocomotion(true, true);
             Vector3 toDestination = destination - suspectToMove.position;
             Vector3 flatDirection = Vector3.ProjectOnPlane(toDestination, Vector3.up);
 
@@ -238,6 +255,8 @@ public class MissionEndingSequence : MonoBehaviour
 
         if (!suspectEscapeTarget.IsStopped)
             suspectToMove.position = destination;
+
+        suspectCombat?.SetLocomotion(false, false);
     }
 
     private void LockPlayerControls()

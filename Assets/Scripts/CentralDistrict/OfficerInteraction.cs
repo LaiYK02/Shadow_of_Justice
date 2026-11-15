@@ -52,14 +52,15 @@ public class OfficerInteraction : PlayerInteractable
     public override void Interact()
     {
         if (!CanInteract) return;
+        CharacterCombat speaker = GetComponent<CharacterCombat>();
         if (firstConversationCompleted)
         {
-            dialogueManager.StartDialogue(repeatConversation);
+            dialogueManager.StartDialogue(repeatConversation, speaker);
         }
         else
         {
             waitingForFirstConversationToEnd = true;
-            dialogueManager.StartDialogue(firstConversation);
+            dialogueManager.StartDialogue(firstConversation, speaker);
         }
     }
 

@@ -1,5 +1,3 @@
-
-using System.Collections;
 using UnityEngine;
 using UnityEngine.UI;
 
@@ -8,12 +6,9 @@ using UnityEngine.InputSystem;
 #endif
 
 [RequireComponent(typeof(CharacterController))]
+[RequireComponent(typeof(CharacterCombat))]
 public class PlayerMovement : MonoBehaviour
 {
-    private static readonly int IsMovingParameter = Animator.StringToHash("IsMoving");
-    private static readonly int IsSprintingParameter = Animator.StringToHash("IsSprinting");
-    private static readonly int IsAttackingParameter = Animator.StringToHash("IsAttacking");
-
     [Header("References")]
     [SerializeField] private Transform cameraTarget;
     [SerializeField] private DialogueManager dialogueManager;
@@ -25,29 +20,28 @@ public class PlayerMovement : MonoBehaviour
     [SerializeField] private Slider energyBar;
     [SerializeField, Min(0f)] private float energyDrainPerSecond = 0.2f;
     [SerializeField, Min(0f)] private float energyRecoveryPerSecond = 0.12f;
-    [SerializeField] private PlayerAttackHitbox attackHitbox;
-    [SerializeField, Min(0f)] private float attackEnergyCost = 0.25f;
-    [SerializeField, Min(0.01f)] private float attackDuration = 1f;
     [SerializeField] private float gravity = -20f;
 
+    [Header("Combat Energy")]
+    [SerializeField, Min(0f)] private float attackEnergyCost = 0.25f;
+    [SerializeField, Min(0.01f)] private float attackDuration = 1f;
+    [SerializeField, Range(0f, 1f)] private float perfectBlockEnergyRefund = 0.25f;
+
     private CharacterController characterController;
-    private Animator playerAnimator;
+    private CharacterCombat combat;
     private float verticalVelocity;
     private bool controlsUnlocked;
     private bool hasStarted;
-    private bool isAttacking;
 
     private void Awake()
     {
         characterController = GetComponent<CharacterController>();
-        playerAnimator = GetComponentInChildren<Animator>(true);
-
-        if (playerAnimator == null)
-            Debug.LogWarning("PlayerMovement: No child Animator was found; player movement will continue without animations.", this);
+        combat = GetComponent<CharacterCombat>();
     }
 
     private void OnEnable()
     {
+        combat.PerfectBlocked += RestorePerfectBlockEnergy;
         if (hasStarted)
             controlsUnlocked = dialogueManager == null || !dialogueManager.IsPlaying;
 
@@ -60,13 +54,16 @@ public class PlayerMovement : MonoBehaviour
 
     private void Start()
     {
-        // Keep movement disabled until the opening dialogue finishes.
-        controlsUnlocked = false;
+        // CentralDistrict unlocks controls after the opening dialogue.
+        controlsUnlocked = dialogueManager == null;
         hasStarted = true;
     }
 
     private void OnDisable()
     {
+        combat.PerfectBlocked -= RestorePerfectBlockEnergy;
+        combat.CancelActions();
+
         if (dialogueManager == null)
             return;
 
@@ -76,78 +73,54 @@ public class PlayerMovement : MonoBehaviour
 
     private void Update()
     {
-        if (!controlsUnlocked || cameraTarget == null)
-        {
-            UpdateAnimationParameters(false, false, false);
+        if (!controlsUnlocked || cameraTarget == null || combat.IsDead)
             return;
-        }
 
-        if (AttackPressed() && !isAttacking)
-        {
-            TryStartAttack();
-            if (isAttacking)
-                return;
-        }
+        UpdateBlock();
+        if (!combat.IsBlocking && AttackPressed() && AvailableEnergy >= attackEnergyCost &&
+            combat.TryAttack(attackDuration))
+            ChangeEnergy(-attackEnergyCost);
 
-        if (isAttacking)
+        if (!combat.CanAct || combat.IsAttacking || combat.IsBlocking)
         {
-            UpdateAnimationParameters(false, false, true);
+            MoveWithGravity(Vector3.zero);
             return;
         }
 
         Vector2 input = ReadMovementInput();
 
-        // Use the camera direction, but ignore its vertical angle.
+        // Use the horizontal camera direction to move and face the player.
         Vector3 forward = cameraTarget.forward;
         Vector3 right = cameraTarget.right;
-
         forward.y = 0f;
         right.y = 0f;
-
         forward.Normalize();
         right.Normalize();
 
-        Vector3 moveDirection =
-            forward * input.y + right * input.x;
-
-        // Prevent diagonal movement from being faster.
-        moveDirection = Vector3.ClampMagnitude(moveDirection, 1f);
-
+        Vector3 moveDirection = Vector3.ClampMagnitude(forward * input.y + right * input.x, 1f);
         if (moveDirection.sqrMagnitude > 0.001f)
         {
             Quaternion facingDirection = Quaternion.LookRotation(moveDirection, Vector3.up);
-            transform.rotation = Quaternion.RotateTowards(
-                transform.rotation,
-                facingDirection,
+            transform.rotation = Quaternion.RotateTowards(transform.rotation, facingDirection,
                 turnSpeed * Time.deltaTime);
         }
 
+        bool moving = input.sqrMagnitude > 0.001f;
+        bool sprinting = moving && SprintPressed() && (energyBar == null || AvailableEnergy > 0f);
+        combat.SetLocomotion(moving, sprinting);
+
+        float energyChange = sprinting ? -energyDrainPerSecond : energyRecoveryPerSecond;
+        ChangeEnergy(energyChange * Time.deltaTime);
+        MoveWithGravity(moveDirection * (sprinting ? sprintSpeed : moveSpeed));
+    }
+
+    private void MoveWithGravity(Vector3 horizontalVelocity)
+    {
         if (characterController.isGrounded && verticalVelocity < 0f)
             verticalVelocity = -2f;
 
         verticalVelocity += gravity * Time.deltaTime;
-
-        bool tryingToSprint = SprintPressed() && input.sqrMagnitude > 0.001f;
-        bool hasEnergy = energyBar == null || energyBar.value > 0f;
-        bool sprinting = tryingToSprint && hasEnergy;
-        bool isMoving = input.sqrMagnitude > 0.001f;
-
-        UpdateAnimationParameters(isMoving, sprinting, false);
-
-        if (energyBar != null)
-        {
-            float energyChange = sprinting
-                ? -energyDrainPerSecond * Time.deltaTime
-                : energyRecoveryPerSecond * Time.deltaTime;
-            energyBar.value = Mathf.Clamp(energyBar.value + energyChange,
-                energyBar.minValue, energyBar.maxValue);
-        }
-
-        float currentSpeed = sprinting ? sprintSpeed : moveSpeed;
-        Vector3 movement =
-            moveDirection * currentSpeed +
-            Vector3.up * verticalVelocity;
-
+        Vector3 movement = horizontalVelocity + Vector3.up * verticalVelocity;
         characterController.Move(movement * Time.deltaTime);
     }
 
@@ -169,12 +142,7 @@ public class PlayerMovement : MonoBehaviour
 
 #if ENABLE_LEGACY_INPUT_MANAGER
         return Vector2.ClampMagnitude(
-            new Vector2(
-                Input.GetAxisRaw("Horizontal"),
-                Input.GetAxisRaw("Vertical")
-            ),
-            1f
-        );
+            new Vector2(Input.GetAxisRaw("Horizontal"), Input.GetAxisRaw("Vertical")), 1f);
 #else
         return Vector2.zero;
 #endif
@@ -209,34 +177,50 @@ public class PlayerMovement : MonoBehaviour
 #endif
     }
 
-    private void TryStartAttack()
+    private void UpdateBlock()
     {
-        if (attackHitbox == null || energyBar == null || energyBar.value < attackEnergyCost)
+        ReadBlockInput(out bool held, out bool pressed);
+        if (!held || AvailableEnergy <= 0f)
+        {
+            combat.EndBlock();
             return;
+        }
 
-        energyBar.value = Mathf.Max(energyBar.minValue, energyBar.value - attackEnergyCost);
-        StartCoroutine(AttackRoutine());
+        if (pressed)
+            combat.TryBeginBlock();
+
+        if (combat.IsBlocking)
+        {
+            ChangeEnergy(-energyDrainPerSecond * Time.deltaTime);
+            if (AvailableEnergy <= 0f)
+                combat.EndBlock();
+        }
     }
 
-    private IEnumerator AttackRoutine()
+    private static void ReadBlockInput(out bool held, out bool pressed)
     {
-        isAttacking = true;
-        UpdateAnimationParameters(false, false, true);
-        attackHitbox.SetAttackActive(true);
-        yield return new WaitForSeconds(attackDuration);
-        if (attackHitbox != null)
-            attackHitbox.SetAttackActive(false);
-        isAttacking = false;
-        UpdateAnimationParameters(false, false, false);
+#if ENABLE_INPUT_SYSTEM
+        if (Mouse.current != null)
+        {
+            held = Mouse.current.rightButton.isPressed;
+            pressed = Mouse.current.rightButton.wasPressedThisFrame;
+            return;
+        }
+#endif
+
+#if ENABLE_LEGACY_INPUT_MANAGER
+        held = Input.GetMouseButton(1);
+        pressed = Input.GetMouseButtonDown(1);
+#else
+        held = false;
+        pressed = false;
+#endif
     }
 
     private void HandleDialogueStarted()
     {
         controlsUnlocked = false;
-        if (attackHitbox != null)
-            attackHitbox.SetAttackActive(false);
-        isAttacking = false;
-        UpdateAnimationParameters(false, false, false);
+        combat.CancelActions();
     }
 
     private void HandleDialogueEnded()
@@ -244,13 +228,16 @@ public class PlayerMovement : MonoBehaviour
         controlsUnlocked = true;
     }
 
-    private void UpdateAnimationParameters(bool isMoving, bool isSprinting, bool isAttackingNow)
-    {
-        if (playerAnimator == null)
-            return;
+    private float AvailableEnergy => energyBar == null ? 0f : energyBar.normalizedValue;
 
-        playerAnimator.SetBool(IsMovingParameter, isMoving);
-        playerAnimator.SetBool(IsSprintingParameter, isSprinting);
-        playerAnimator.SetBool(IsAttackingParameter, isAttackingNow);
+    private void ChangeEnergy(float amount)
+    {
+        if (energyBar != null)
+            energyBar.normalizedValue = Mathf.Clamp01(energyBar.normalizedValue + amount);
+    }
+
+    private void RestorePerfectBlockEnergy()
+    {
+        ChangeEnergy(perfectBlockEnergyRefund);
     }
 }

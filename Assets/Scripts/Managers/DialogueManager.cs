@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
@@ -16,6 +17,7 @@ public class DialogueLine
     public string dialogueText;
 
     public Sprite portrait;
+    public CharacterCombat speaker;
 }
 
 public class DialogueManager : MonoBehaviour
@@ -30,8 +32,17 @@ public class DialogueManager : MonoBehaviour
 
     [Header("Opening Dialogue")]
     [SerializeField] private DialogueLine[] openingDialogue;
+    [SerializeField] private CharacterCombat openingSpeaker;
 
+    [Header("Dialogue Facing")]
+    [SerializeField] private CharacterCombat player;
+    [SerializeField, Min(1f)] private float dialogueTurnSpeed = 540f;
+
+    private readonly Dictionary<Transform, Quaternion> originalModelRotations = new();
     private DialogueLine[] activeDialogue;
+    private CharacterCombat defaultSpeaker;
+    private CharacterCombat activeSpeaker;
+    private CharacterCombat dialoguePartner;
     private int currentLine;
     private bool isPlaying;
     private bool isOpeningDialogue;
@@ -97,17 +108,59 @@ public class DialogueManager : MonoBehaviour
             AdvanceDialogue();
     }
 
+    private void LateUpdate()
+    {
+        if (!isPlaying || player == null || dialoguePartner == null)
+            return;
+
+        Transform playerModel = player.ModelTransform;
+        Transform partnerModel = dialoguePartner.ModelTransform;
+        if (playerModel == null || partnerModel == null || playerModel == partnerModel)
+            return;
+
+        Vector3 direction = Vector3.ProjectOnPlane(partnerModel.position - playerModel.position, Vector3.up);
+        if (direction.sqrMagnitude < 0.0001f)
+            return;
+
+        TurnModel(playerModel, direction);
+        TurnModel(partnerModel, -direction);
+    }
+
+    private void TurnModel(Transform model, Vector3 direction)
+    {
+        originalModelRotations.TryAdd(model, model.localRotation);
+        Quaternion facing = Quaternion.LookRotation(direction, Vector3.up);
+        model.rotation = Quaternion.RotateTowards(model.rotation, facing,
+            dialogueTurnSpeed * Time.unscaledDeltaTime);
+    }
+
+    private void RestoreModelRotations()
+    {
+        foreach (var entry in originalModelRotations)
+        {
+            if (entry.Key != null)
+                entry.Key.localRotation = entry.Value;
+        }
+
+        originalModelRotations.Clear();
+    }
+
     public void StartOpeningDialogue()
     {
-        StartDialogueInternal(openingDialogue, true);
+        StartDialogueInternal(openingDialogue, true, openingSpeaker);
     }
 
     public void StartDialogue(DialogueLine[] lines)
     {
-        StartDialogueInternal(lines, false);
+        StartDialogue(lines, null);
     }
 
-    private void StartDialogueInternal(DialogueLine[] lines, bool opening)
+    public void StartDialogue(DialogueLine[] lines, CharacterCombat speaker)
+    {
+        StartDialogueInternal(lines, false, speaker);
+    }
+
+    private void StartDialogueInternal(DialogueLine[] lines, bool opening, CharacterCombat speaker)
     {
         if (isPlaying)
             return;
@@ -129,6 +182,8 @@ public class DialogueManager : MonoBehaviour
         }
 
         activeDialogue = lines;
+        defaultSpeaker = speaker;
+        dialoguePartner = speaker != player ? speaker : null;
         currentLine = 0;
         isPlaying = true;
         isOpeningDialogue = opening;
@@ -172,7 +227,7 @@ public class DialogueManager : MonoBehaviour
     private void ShowCurrentLine()
     {
         DialogueLine line = activeDialogue[currentLine];
-
+        SetActiveSpeaker(line.speaker != null ? line.speaker : defaultSpeaker);
         speakerNameText.text = line.speakerName;
         dialogueText.text = line.dialogueText;
 
@@ -191,6 +246,10 @@ public class DialogueManager : MonoBehaviour
         isPlaying = false;
         isOpeningDialogue = false;
         activeDialogue = null;
+        defaultSpeaker = null;
+        dialoguePartner = null;
+        SetActiveSpeaker(null);
+        RestoreModelRotations();
 
         if (dialoguePanel != null)
             dialoguePanel.SetActive(false);
@@ -213,6 +272,39 @@ public class DialogueManager : MonoBehaviour
 
         if (wasOpeningDialogue)
             OpeningDialogueEnded?.Invoke();
+    }
+
+    private void OnDisable()
+    {
+        SetActiveSpeaker(null);
+        RestoreModelRotations();
+    }
+
+    private void OnEnable()
+    {
+        if (!isPlaying)
+            return;
+
+        DialogueLine line = activeDialogue[currentLine];
+        SetActiveSpeaker(line.speaker != null ? line.speaker : defaultSpeaker);
+    }
+
+    private void SetActiveSpeaker(CharacterCombat speaker)
+    {
+        if (activeSpeaker == speaker)
+            return;
+
+        if (activeSpeaker != null)
+            activeSpeaker.SetTalking(false);
+
+        activeSpeaker = speaker;
+        if (activeSpeaker != null)
+        {
+            if (activeSpeaker != player)
+                dialoguePartner = activeSpeaker;
+
+            activeSpeaker.SetTalking(true);
+        }
     }
 
     private bool SpacePressed()
