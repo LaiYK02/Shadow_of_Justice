@@ -11,6 +11,9 @@ EditorBuildSettings:
   - enabled: 1
     path: Assets/Scenes/CentralDistrict.unity
     guid: c4178c56aececdb458cde3b708af1090
+  - enabled: 1
+    path: Assets/Scenes/OldTown.unity
+    guid: 997610b26fcfe494780af672aaa45136
   m_configObjects:
     com.unity.input.settings.actions: {fileID: -944628639613478452, guid: 052faaac586de48259a63d0c4782560b, type: 3}
   m_UseUCBPForAssetBundles: 0
