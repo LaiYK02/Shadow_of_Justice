@@ -6,6 +6,9 @@ using UnityEngine.UI;
 [DefaultExecutionOrder(-10)]
 public class CharacterCombat : MonoBehaviour
 {
+    // Match the fixed blend from Standing Block Idle to Idle in the Y Bot Animator.
+    private const float BlockRecoveryDuration = 0.5f;
+
     private static readonly int Moving = Animator.StringToHash("IsMoving");
     private static readonly int Sprinting = Animator.StringToHash("IsSprinting");
     private static readonly int Attacking = Animator.StringToHash("IsAttacking");
@@ -28,6 +31,7 @@ public class CharacterCombat : MonoBehaviour
     private bool isTalking;
     private bool perfectBlockAvailable;
     private float blockStartedAt;
+    private float blockRecoveryEndsAt;
     private float attackEndsAt;
     private float hitReactionEndsAt;
     private float stunEndsAt;
@@ -40,7 +44,8 @@ public class CharacterCombat : MonoBehaviour
     public bool IsAttacking => attackEndsAt > 0f;
     public bool IsHitReacting => hitReactionEndsAt > 0f;
     public bool IsStunned => stunEndsAt > 0f;
-    public bool CanAct => isActiveAndEnabled && !IsDead && !IsStunned && !IsHitReacting && !isTalking;
+    public bool CanAct => isActiveAndEnabled && !IsDead && !IsStunned && !IsHitReacting &&
+        !isTalking && Time.time >= blockRecoveryEndsAt;
     internal Transform ModelTransform => animator != null ? animator.transform : null;
 
     private void Awake()
@@ -118,6 +123,7 @@ public class CharacterCombat : MonoBehaviour
 
         IsBlocking = false;
         perfectBlockAvailable = false;
+        blockRecoveryEndsAt = Time.time + BlockRecoveryDuration;
         SetAnimatorBool(Blocking, false);
     }
 

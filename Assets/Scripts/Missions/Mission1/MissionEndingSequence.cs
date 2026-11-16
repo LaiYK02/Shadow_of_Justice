@@ -121,7 +121,6 @@ public class MissionEndingSequence : MonoBehaviour
             return;
 
         sequenceStarted = true;
-        playerHUD?.SetCutsceneActive(true);
         StartCoroutine(PlaySequence());
     }
 
@@ -145,6 +144,10 @@ public class MissionEndingSequence : MonoBehaviour
         if (delayAfterMission > 0f)
             yield return new WaitForSecondsRealtime(delayAfterMission);
 
+        while (missionFlow.HasPendingEvidenceCompletion)
+            yield return null;
+
+        playerHUD?.SetCutsceneActive(true);
         LockPlayerControls();
 
         cameraBrain.DefaultBlend = new CinemachineBlendDefinition(
@@ -157,7 +160,6 @@ public class MissionEndingSequence : MonoBehaviour
         // Let Cinemachine finish the move before showing the first dialogue line.
         yield return new WaitForSecondsRealtime(cameraBlendDuration);
 
-        missionFlow.HideEvidenceObjectives();
         dialogueManager.StartDialogue(suspectDialogue, suspectCombat);
         while (dialogueManager.IsPlaying)
             yield return null;
@@ -188,7 +190,8 @@ public class MissionEndingSequence : MonoBehaviour
         while (!suspectEscapeTarget.IsStopped)
             yield return null;
 
-        while (suspectCombat != null && suspectCombat.IsHitReacting)
+        missionFlow.CompleteChaseObjective();
+        while (missionFlow.HasPendingChaseCompletion || (suspectCombat != null && suspectCombat.IsHitReacting))
             yield return null;
 
         LockPlayerControls();
@@ -206,7 +209,6 @@ public class MissionEndingSequence : MonoBehaviour
 
         arrestChoiceText.text = arrestChoiceLabel;
         letGoChoiceText.text = letGoChoiceLabel;
-        missionFlow.HideMissionPanel();
         playerHUD?.SetChoiceActive(true);
         choicePanel.SetActive(true);
 

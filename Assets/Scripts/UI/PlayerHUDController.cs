@@ -11,10 +11,14 @@ public class PlayerHUDController : MonoBehaviour
     private bool choiceActive;
     private bool missionStartActive;
 
+    public bool IsVisible => isActiveAndEnabled && !dialogueActive && !cutsceneActive &&
+        !choiceActive && !missionStartActive;
+
     private void OnEnable()
     {
         if (dialogueManager != null)
         {
+            dialogueActive = dialogueManager.IsPlaying;
             dialogueManager.DialogueStarted += HandleDialogueStarted;
             dialogueManager.DialogueEnded += HandleDialogueEnded;
         }
@@ -63,7 +67,7 @@ public class PlayerHUDController : MonoBehaviour
 
     private void RefreshVisibility()
     {
-        bool visible = !dialogueActive && !cutsceneActive && !choiceActive && !missionStartActive;
+        bool visible = IsVisible;
         if (hudElements == null)
             return;
 

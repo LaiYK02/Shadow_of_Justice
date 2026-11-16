@@ -24,7 +24,6 @@ public class DialogueManager : MonoBehaviour
 {
     [Header("Dialogue UI")]
     [SerializeField] private GameObject dialoguePanel;
-    [SerializeField] private GameObject missionPanel;
     [SerializeField] private Image portraitImage;
     [SerializeField] private TMP_Text speakerNameText;
     [SerializeField] private TMP_Text dialogueText;
@@ -49,8 +48,6 @@ public class DialogueManager : MonoBehaviour
     private CursorLockMode cursorLockStateBeforeDialogue;
     private bool cursorVisibleBeforeDialogue;
     private bool cursorStateSaved;
-    private bool missionPanelWasActive;
-    private bool missionPanelStateSaved;
 
     public bool IsPlaying => isPlaying;
 
@@ -194,13 +191,6 @@ public class DialogueManager : MonoBehaviour
         Cursor.lockState = CursorLockMode.Locked;
         Cursor.visible = false;
 
-        if (missionPanel != null)
-        {
-            missionPanelWasActive = missionPanel.activeSelf;
-            missionPanelStateSaved = true;
-            missionPanel.SetActive(false);
-        }
-
         dialoguePanel.SetActive(true);
         if (spacePromptText != null)
             spacePromptText.gameObject.SetActive(true);
@@ -253,10 +243,6 @@ public class DialogueManager : MonoBehaviour
 
         if (dialoguePanel != null)
             dialoguePanel.SetActive(false);
-
-        if (missionPanelStateSaved && missionPanel != null)
-            missionPanel.SetActive(missionPanelWasActive);
-        missionPanelStateSaved = false;
 
         if (spacePromptText != null)
             spacePromptText.gameObject.SetActive(false);

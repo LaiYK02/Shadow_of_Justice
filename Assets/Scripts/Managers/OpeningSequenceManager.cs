@@ -1,3 +1,4 @@
+using System.Collections;
 using TMPro;
 using UnityEngine;
 using UnityEngine.Events;
@@ -12,6 +13,7 @@ public class OpeningSequenceManager : MonoBehaviour,
 {
     [Header("UI References")]
     [SerializeField] private GameObject openingPanel;
+    [SerializeField] private CanvasGroup openingFade;
     [SerializeField] private TMP_Text openingText;
     [SerializeField] private TMP_Text skipHintText;
     [SerializeField] private TypewriterEffect typewriter;
@@ -23,6 +25,9 @@ public class OpeningSequenceManager : MonoBehaviour,
 
     [SerializeField, Min(0f)]
     private float hintDisplayDuration = 3f;
+
+    [SerializeField, Min(0f)]
+    private float fadeOutDuration = 0.75f;
 
     [Header("Opening Story")]
     [SerializeField, TextArea(3, 6)]
@@ -81,6 +86,8 @@ public class OpeningSequenceManager : MonoBehaviour,
             playerHUD.SetCutsceneActive(true);
 
         openingPanel.SetActive(true);
+        if (openingFade != null)
+            openingFade.alpha = 1f;
 
         currentParagraph = 0;
         sequenceFinished = false;
@@ -250,6 +257,24 @@ public class OpeningSequenceManager : MonoBehaviour,
 
         sequenceFinished = true;
         SetHintVisible(false);
+        typewriter.CompleteTyping();
+        openingText.enabled = false;
+        StartCoroutine(FadeOutOpening());
+    }
+
+    private IEnumerator FadeOutOpening()
+    {
+        if (openingFade != null && fadeOutDuration > 0f)
+        {
+            float elapsed = 0f;
+            while (elapsed < fadeOutDuration)
+            {
+                yield return null;
+                elapsed += Time.unscaledDeltaTime;
+                openingFade.alpha = 1f - Mathf.Clamp01(elapsed / fadeOutDuration);
+            }
+        }
+
         openingPanel.SetActive(false);
 
         onOpeningFinished?.Invoke();

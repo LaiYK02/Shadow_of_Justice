@@ -1,112 +1,103 @@
 using System.Collections;
-using UnityEngine;
 using Unity.Cinemachine;
+using UnityEngine;
 using UnityEngine.Events;
 
 public class CameraIntroTransition : MonoBehaviour
 {
-    [Header("Cinemachine Cameras")]
-    [SerializeField] private CinemachineCamera introCamera;
+    [Header("Cameras")]
+    [SerializeField] private CinemachineExternalCamera introStartCamera;
     [SerializeField] private CinemachineCamera playerFollowCamera;
+    [SerializeField] private CinemachineBrain cameraBrain;
+    [SerializeField, Min(0.1f)] private float blendDuration = 3f;
+
+    [Header("Cutscene")]
+    [SerializeField] private PlayerInteractionManager playerInteraction;
     [SerializeField] private PlayerHUDController playerHUD;
-
-    [Header("Camera Position Markers")]
-    [SerializeField] private Transform introStart;
-    [SerializeField] private Transform introEnd;
-
-    [Header("Transition Settings")]
-    [SerializeField, Min(0.1f)] private float moveDuration = 3f;
-    [SerializeField]
-    private AnimationCurve movementCurve =
-        AnimationCurve.EaseInOut(0f, 0f, 1f, 1f);
-
-    [Header("Camera Priorities")]
-    [SerializeField] private int introPriority = 20;
-    [SerializeField] private int followPriority = 10;
-
-    [Header("Events")]
     [SerializeField] private UnityEvent onTransitionFinished;
 
     private bool hasStarted;
+    private bool restorePlayerInteraction;
+    private bool blendSettingsSaved;
+    private CinemachineBlendDefinition originalBlend;
+    private bool originalIgnoreTimeScale;
 
     private void Awake()
     {
-        if (introCamera == null || playerFollowCamera == null ||
-            introStart == null || introEnd == null)
+        if (introStartCamera == null || playerFollowCamera == null || cameraBrain == null)
         {
-            Debug.LogError(
-                "CameraIntroTransition: Assign all camera references and markers.");
+            Debug.LogError("CameraIntroTransition: Assign the intro camera, follow camera, and camera brain.", this);
             enabled = false;
             return;
         }
 
-        // Keep the intro camera active until the transition finishes.
-        introCamera.Priority = introPriority;
-        playerFollowCamera.Priority = followPriority;
+        // The player's movement and camera controls already wait for the opening dialogue.
+        if (playerInteraction != null && playerInteraction.enabled)
+        {
+            restorePlayerInteraction = true;
+            playerInteraction.enabled = false;
+        }
 
-        // Place the intro camera at the starting marker.
-        introCamera.transform.SetPositionAndRotation(
-            introStart.position,
-            introStart.rotation
-        );
+        introStartCamera.Priority = playerFollowCamera.Priority.Value + 1;
+        introStartCamera.enabled = true;
     }
 
     public void BeginTransition()
     {
-        if (hasStarted || !enabled)
+        if (hasStarted || !isActiveAndEnabled)
             return;
 
         hasStarted = true;
-        StartCoroutine(PlayCameraTransition());
+        StartCoroutine(BlendToPlayerCamera());
     }
 
-    private IEnumerator PlayCameraTransition()
+    private IEnumerator BlendToPlayerCamera()
     {
-        float elapsed = 0f;
-        float duration = Mathf.Max(0.1f, moveDuration);
+        originalBlend = cameraBrain.DefaultBlend;
+        originalIgnoreTimeScale = cameraBrain.IgnoreTimeScale;
+        blendSettingsSaved = true;
+        cameraBrain.DefaultBlend = new CinemachineBlendDefinition(
+            CinemachineBlendDefinition.Styles.EaseInOut, blendDuration);
+        cameraBrain.IgnoreTimeScale = true;
 
-        Vector3 startPosition = introStart.position;
-        Quaternion startRotation = introStart.rotation;
-
-        Vector3 endPosition = introEnd.position;
-        Quaternion endRotation = introEnd.rotation;
-
-        while (elapsed < duration)
-        {
-            elapsed += Time.unscaledDeltaTime;
-
-            float progress = Mathf.Clamp01(elapsed / duration);
-            float easedProgress = movementCurve.Evaluate(progress);
-
-            introCamera.transform.position = Vector3.LerpUnclamped(
-                startPosition,
-                endPosition,
-                easedProgress
-            );
-
-            introCamera.transform.rotation = Quaternion.Slerp(
-                startRotation,
-                endRotation,
-                easedProgress
-            );
-
+        // Leave the source active until Cinemachine finishes using it.
+        introStartCamera.Priority = playerFollowCamera.Priority.Value - 1;
+        introStartCamera.Prioritize();
+        yield return null;
+        while (cameraBrain.ActiveVirtualCamera != (ICinemachineCamera)playerFollowCamera || cameraBrain.IsBlending)
             yield return null;
-        }
 
-        // Finish precisely at the end marker.
-        introCamera.transform.SetPositionAndRotation(
-            endPosition,
-            endRotation
-        );
-
-        // Switch to the third-person camera.
-        introCamera.Priority = 0;
-        playerFollowCamera.Priority = 20;
-
+        ReleaseIntroCamera();
+        onTransitionFinished?.Invoke();
+        RestoreInteraction();
         if (playerHUD != null)
             playerHUD.SetCutsceneActive(false);
+    }
 
-        // Start the sheriff's dialogue.
-        onTransitionFinished?.Invoke();
+    private void OnDisable()
+    {
+        StopAllCoroutines();
+        ReleaseIntroCamera();
+        RestoreInteraction();
+    }
+
+    private void ReleaseIntroCamera()
+    {
+        if (introStartCamera != null)
+            introStartCamera.enabled = false;
+
+        if (!blendSettingsSaved || cameraBrain == null)
+            return;
+
+        cameraBrain.DefaultBlend = originalBlend;
+        cameraBrain.IgnoreTimeScale = originalIgnoreTimeScale;
+        blendSettingsSaved = false;
+    }
+
+    private void RestoreInteraction()
+    {
+        if (restorePlayerInteraction && playerInteraction != null)
+            playerInteraction.enabled = true;
+        restorePlayerInteraction = false;
     }
 }

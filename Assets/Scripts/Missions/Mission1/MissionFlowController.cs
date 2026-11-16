@@ -1,11 +1,14 @@
-
-using System.Collections;
 using System;
+using System.Collections;
 using TMPro;
 using UnityEngine;
 
 public class MissionFlowController : MonoBehaviour
 {
+    private const string TalkToOfficer = "Talk to the Fellow Officer";
+    private const string ChaseSuspect = "Chase and hit the Suspect";
+    private const string HiddenObjective = "......";
+
     [Header("References")]
     [SerializeField] private OfficerInteraction fellowOfficer;
     [SerializeField] private DialogueManager dialogueManager;
@@ -49,38 +52,69 @@ public class MissionFlowController : MonoBehaviour
         "phone"
     };
 
+    private MissionObjectiveRow[] evidenceRows;
+    private MissionObjectiveRow sharedObjectiveRow;
     private bool[] objectivesCompleted;
+    private float topRowY;
+    private bool showMissionTitle;
     private bool missionStarted;
-    private bool missionCompleted;
+    private bool investigationCompleted;
+    private bool evidenceDismissalRequested;
     private bool sequencePlaying;
 
-    public bool CanInteract => missionStarted && !missionCompleted;
+    public bool CanInteract => missionStarted && !investigationCompleted;
     public bool IsMissionStartSequencePlaying => sequencePlaying;
+    public bool HasPendingChaseCompletion => sharedObjectiveRow?.IsDismissing == true;
+    public bool HasPendingEvidenceCompletion
+    {
+        get
+        {
+            if (!investigationCompleted)
+                return false;
+
+            foreach (var row in evidenceRows)
+            {
+                if (row?.HasContent == true)
+                    return true;
+            }
+
+            return false;
+        }
+    }
+
     public event Action MissionCompleted;
 
     private void Awake()
     {
         objectivesCompleted = new bool[objectiveIds.Length];
+        evidenceRows = new MissionObjectiveRow[objectiveIds.Length];
 
         if (missionStartPanel != null)
             missionStartPanel.SetActive(false);
 
-        if (missionPanel != null)
-            missionPanel.SetActive(false);
-
         if (missionNumberText != null)
             missionNumberText.text = missionNumber;
-
         if (missionNameText != null)
             missionNameText.text = missionName;
 
-        if (chaseObjectiveText != null)
-        {
-            chaseObjectiveText.text = "......";
-            chaseObjectiveText.fontStyle &= ~FontStyles.Strikethrough;
-        }
+        if (missionPanel == null)
+            return;
 
-        RefreshObjectiveTexts();
+        missionPanel.SetActive(false);
+        if (objectiveTexts != null)
+        {
+            for (int i = 0; i < Mathf.Min(objectiveTexts.Length, evidenceRows.Length); i++)
+                evidenceRows[i] = CreateRow(objectiveTexts[i]);
+        }
+        sharedObjectiveRow = CreateRow(chaseObjectiveText);
+        topRowY = (Array.Find(evidenceRows, row => row != null) ?? sharedObjectiveRow)?.ListPositionY ?? 0f;
+    }
+
+    private static MissionObjectiveRow CreateRow(TMP_Text label)
+    {
+        return label != null && label.transform.parent is RectTransform row
+            ? new MissionObjectiveRow(label, row)
+            : null;
     }
 
     private void OnEnable()
@@ -99,21 +133,77 @@ public class MissionFlowController : MonoBehaviour
             dialogueManager.OpeningDialogueEnded -= ShowTalkToOfficerObjective;
     }
 
-    private void ShowTalkToOfficerObjective()
+    private void LateUpdate()
     {
-        if (missionStarted || sequencePlaying || missionPanel == null || chaseObjectiveText == null)
+        if (missionPanel == null)
             return;
 
-        HideEvidenceObjectives();
-        if (missionTitle != null)
-            missionTitle.SetActive(false);
-        if (missionTitleDivider != null)
-            missionTitleDivider.SetActive(false);
-        SetChaseObjectiveRowPositionAtTop();
-        chaseObjectiveText.text = "Talk to the Fellow Officer";
-        chaseObjectiveText.fontStyle &= ~FontStyles.Strikethrough;
-        chaseObjectiveText.transform.parent.gameObject.SetActive(true);
-        missionPanel.SetActive(true);
+        bool canShow = (playerHUD == null || playerHUD.IsVisible) &&
+            (dialogueManager == null || !dialogueManager.IsPlaying) &&
+            (missionStartPanel == null || !missionStartPanel.activeInHierarchy) &&
+            (missionPanel.transform.parent == null ||
+                missionPanel.transform.parent.gameObject.activeInHierarchy);
+
+        bool hasRows = false;
+        if (canShow)
+        {
+            float deltaTime = Time.unscaledDeltaTime;
+            float nextRowY = topRowY;
+            foreach (var row in evidenceRows)
+                hasRows |= AdvanceRow(row, deltaTime, ref nextRowY);
+
+            hasRows |= AdvanceRow(sharedObjectiveRow, deltaTime, ref nextRowY);
+            DismissCompletedEvidence();
+
+            if (hasRows)
+            {
+                if (missionTitle != null)
+                    missionTitle.SetActive(showMissionTitle);
+                if (missionTitleDivider != null)
+                    missionTitleDivider.SetActive(showMissionTitle);
+            }
+        }
+
+        bool showPanel = canShow && hasRows;
+        if (missionPanel.activeSelf != showPanel)
+            missionPanel.SetActive(showPanel);
+    }
+
+    private static bool AdvanceRow(MissionObjectiveRow row, float deltaTime, ref float nextRowY)
+    {
+        if (row?.HasContent != true)
+            return false;
+
+        row.SetListPosition(nextRowY);
+        row.Advance(deltaTime);
+        if (!row.HasContent)
+            return false;
+
+        nextRowY -= row.Height;
+        return true;
+    }
+
+    private void DismissCompletedEvidence()
+    {
+        if (!investigationCompleted || evidenceDismissalRequested)
+            return;
+
+        // Give every completed item the same time on screen before clearing the checklist.
+        foreach (var row in evidenceRows)
+        {
+            if (row != null && !row.IsShowingCompletion)
+                return;
+        }
+
+        evidenceDismissalRequested = true;
+        foreach (var row in evidenceRows)
+            row?.Dismiss();
+    }
+
+    private void ShowTalkToOfficerObjective()
+    {
+        if (!missionStarted && !sequencePlaying)
+            sharedObjectiveRow?.Show(TalkToOfficer);
     }
 
     public void StartMissionSequence()
@@ -127,8 +217,10 @@ public class MissionFlowController : MonoBehaviour
 
     private IEnumerator MissionStartRoutine()
     {
-        if (missionPanel != null)
-            missionPanel.SetActive(false);
+        sharedObjectiveRow?.MarkComplete(TalkToOfficer);
+        sharedObjectiveRow?.Dismiss();
+        while (sharedObjectiveRow?.IsDismissing == true)
+            yield return null;
 
         if (missionStartPanel != null)
         {
@@ -142,33 +234,22 @@ public class MissionFlowController : MonoBehaviour
                 missionStartCanvasGroup.blocksRaycasts = false;
 
                 yield return Fade(0f, 1f, fadeInDuration);
-
                 yield return new WaitForSecondsRealtime(holdDuration);
-
                 yield return Fade(1f, 0f, fadeOutDuration);
             }
             else
             {
-                Debug.LogWarning(
-                    "MissionFlowController: Assign the Mission Start CanvasGroup.",
-                    this);
-
-                yield return new WaitForSecondsRealtime(
-                    fadeInDuration + holdDuration + fadeOutDuration);
+                Debug.LogWarning("MissionFlowController: Assign the Mission Start CanvasGroup.", this);
+                yield return new WaitForSecondsRealtime(fadeInDuration + holdDuration + fadeOutDuration);
             }
 
             missionStartPanel.SetActive(false);
             playerHUD?.SetMissionStartActive(false);
         }
 
-        if (missionPanel != null)
-            missionPanel.SetActive(true);
-
-        if (missionTitle != null)
-            missionTitle.SetActive(true);
-        if (missionTitleDivider != null)
-            missionTitleDivider.SetActive(true);
-        ShowEvidenceObjectives();
+        showMissionTitle = true;
+        foreach (var row in evidenceRows)
+            row?.Show(HiddenObjective);
 
         missionStarted = true;
         sequencePlaying = false;
@@ -176,26 +257,11 @@ public class MissionFlowController : MonoBehaviour
 
     private IEnumerator Fade(float startAlpha, float endAlpha, float duration)
     {
-        if (missionStartCanvasGroup == null)
-            yield break;
-
-        if (duration <= 0f)
-        {
-            missionStartCanvasGroup.alpha = endAlpha;
-            yield break;
-        }
-
         float elapsed = 0f;
-
         while (elapsed < duration)
         {
             elapsed += Time.unscaledDeltaTime;
-
-            missionStartCanvasGroup.alpha = Mathf.Lerp(
-                startAlpha,
-                endAlpha,
-                Mathf.Clamp01(elapsed / duration));
-
+            missionStartCanvasGroup.alpha = Mathf.Lerp(startAlpha, endAlpha, elapsed / duration);
             yield return null;
         }
 
@@ -207,11 +273,10 @@ public class MissionFlowController : MonoBehaviour
         if (!CanInteract)
             return;
 
-        int index = System.Array.IndexOf(objectiveIds, objectiveId);
-
+        int index = Array.IndexOf(objectiveIds, objectiveId);
         if (index < 0)
         {
-            Debug.LogWarning("Unknown mission objective ID: " + objectiveId);
+            Debug.LogWarning("Unknown mission objective ID: " + objectiveId, this);
             return;
         }
 
@@ -219,122 +284,24 @@ public class MissionFlowController : MonoBehaviour
             return;
 
         objectivesCompleted[index] = true;
-        RefreshObjectiveTexts();
-
+        evidenceRows[index]?.MarkComplete(objectiveNames[index]);
         Debug.Log("Objective completed: " + objectiveNames[index]);
-
-        bool allCompleted = true;
 
         foreach (bool completed in objectivesCompleted)
         {
             if (!completed)
-            {
-                allCompleted = false;
-                break;
-            }
+                return;
         }
 
-        if (allCompleted)
-        {
-            missionCompleted = true;
-            Debug.Log("Mission 1 completed!");
-            MissionCompleted?.Invoke();
-        }
+        investigationCompleted = true;
+        MissionCompleted?.Invoke();
     }
 
-    public void ActivateChaseObjective()
+    public void ActivateChaseObjective() => sharedObjectiveRow?.Show(ChaseSuspect);
+
+    public void CompleteChaseObjective()
     {
-        if (chaseObjectiveText == null)
-        {
-            Debug.LogWarning("MissionFlowController: Assign the chase objective text.", this);
-            return;
-        }
-
-        Transform chaseRow = chaseObjectiveText.transform.parent;
-        if (chaseRow != null)
-        {
-            chaseRow.gameObject.SetActive(true);
-            SetChaseObjectiveRowPositionAtTop();
-        }
-
-        chaseObjectiveText.text = "Chase and hit the Suspect";
-        chaseObjectiveText.fontStyle &= ~FontStyles.Strikethrough;
-    }
-
-    public void HideEvidenceObjectives()
-    {
-        if (objectiveTexts == null)
-            return;
-
-        foreach (TMP_Text objectiveText in objectiveTexts)
-        {
-            if (objectiveText != null && objectiveText.transform.parent != null)
-                objectiveText.transform.parent.gameObject.SetActive(false);
-        }
-    }
-
-    public void HideMissionPanel()
-    {
-        if (missionPanel != null)
-            missionPanel.SetActive(false);
-    }
-
-    private void ShowEvidenceObjectives()
-    {
-        if (objectiveTexts != null)
-        {
-            foreach (TMP_Text objectiveText in objectiveTexts)
-            {
-                if (objectiveText != null && objectiveText.transform.parent != null)
-                    objectiveText.transform.parent.gameObject.SetActive(true);
-            }
-        }
-
-        if (chaseObjectiveText != null && chaseObjectiveText.transform.parent != null)
-        {
-            chaseObjectiveText.text = "......";
-            chaseObjectiveText.transform.parent.gameObject.SetActive(false);
-        }
-    }
-
-    private void SetChaseObjectiveRowPositionAtTop()
-    {
-        if (chaseObjectiveText == null || objectiveTexts == null || objectiveTexts.Length == 0 ||
-            objectiveTexts[0] == null)
-            return;
-
-        if (chaseObjectiveText.transform.parent is RectTransform chaseRect &&
-            objectiveTexts[0].transform.parent is RectTransform firstRowRect)
-        {
-            chaseRect.anchoredPosition = firstRowRect.anchoredPosition;
-        }
-    }
-
-    private void RefreshObjectiveTexts()
-    {
-        if (objectiveTexts == null)
-            return;
-
-        for (int i = 0; i < objectiveTexts.Length; i++)
-        {
-            if (objectiveTexts[i] == null)
-                continue;
-
-            if (i >= objectiveNames.Length)
-                continue;
-
-            bool completed = objectivesCompleted != null &&
-                             objectivesCompleted[i];
-
-            // Preserve the label's other styles (such as bold), but make
-            // strikethrough depend only on whether this objective is complete.
-            FontStyles style = objectiveTexts[i].fontStyle;
-            style &= ~FontStyles.Strikethrough;
-            if (completed)
-                style |= FontStyles.Strikethrough;
-
-            objectiveTexts[i].fontStyle = style;
-            objectiveTexts[i].text = completed ? objectiveNames[i] : "......";
-        }
+        sharedObjectiveRow?.MarkComplete(ChaseSuspect);
+        sharedObjectiveRow?.Dismiss();
     }
 }
