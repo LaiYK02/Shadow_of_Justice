@@ -64,6 +64,14 @@ internal sealed class MissionObjectiveRow
         restingPosition.y = y;
     }
 
+    public void GetRestingWorldCorners(Vector3[] corners)
+    {
+        row.GetWorldCorners(corners);
+        Vector3 offset = row.parent.TransformVector(restingPosition - row.anchoredPosition);
+        for (int i = 0; i < corners.Length; i++)
+            corners[i] += offset;
+    }
+
     // The owner advances the row only while its HUD panel is visible.
     public void Advance(float deltaTime)
     {

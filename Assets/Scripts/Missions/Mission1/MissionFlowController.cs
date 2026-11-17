@@ -6,8 +6,10 @@ using UnityEngine;
 public class MissionFlowController : MonoBehaviour
 {
     private const string TalkToOfficer = "Talk to the Fellow Officer";
+    private const string CollectEvidence = "Collect the evidence";
     private const string ChaseSuspect = "Chase and hit the Suspect";
     private const string HiddenObjective = "......";
+    private static readonly Vector2 BackdropPadding = new(16f, 12f);
 
     [Header("References")]
     [SerializeField] private OfficerInteraction fellowOfficer;
@@ -22,6 +24,7 @@ public class MissionFlowController : MonoBehaviour
 
     [Header("Mission Objectives Panel")]
     [SerializeField] private GameObject missionPanel;
+    [SerializeField] private RectTransform missionBackdrop;
     [SerializeField] private GameObject missionTitle;
     [SerializeField] private GameObject missionTitleDivider;
     [SerializeField] private TMP_Text[] objectiveTexts;
@@ -53,12 +56,14 @@ public class MissionFlowController : MonoBehaviour
     };
 
     private MissionObjectiveRow[] evidenceRows;
+    private readonly Vector3[] backdropCorners = new Vector3[4];
     private MissionObjectiveRow sharedObjectiveRow;
     private bool[] objectivesCompleted;
     private float topRowY;
     private bool showMissionTitle;
     private bool missionStarted;
     private bool investigationCompleted;
+    private bool evidenceInstructionActive;
     private bool evidenceDismissalRequested;
     private bool sequencePlaying;
 
@@ -71,6 +76,9 @@ public class MissionFlowController : MonoBehaviour
         {
             if (!investigationCompleted)
                 return false;
+
+            if (evidenceInstructionActive && sharedObjectiveRow?.HasContent == true)
+                return true;
 
             foreach (var row in evidenceRows)
             {
@@ -149,10 +157,12 @@ public class MissionFlowController : MonoBehaviour
         {
             float deltaTime = Time.unscaledDeltaTime;
             float nextRowY = topRowY;
+            bool sharedRowActive = AdvanceRow(sharedObjectiveRow, deltaTime, ref nextRowY);
+            hasRows = sharedRowActive;
+            evidenceInstructionActive &= sharedRowActive;
             foreach (var row in evidenceRows)
                 hasRows |= AdvanceRow(row, deltaTime, ref nextRowY);
 
-            hasRows |= AdvanceRow(sharedObjectiveRow, deltaTime, ref nextRowY);
             DismissCompletedEvidence();
 
             if (hasRows)
@@ -167,6 +177,56 @@ public class MissionFlowController : MonoBehaviour
         bool showPanel = canShow && hasRows;
         if (missionPanel.activeSelf != showPanel)
             missionPanel.SetActive(showPanel);
+        if (showPanel && missionBackdrop != null)
+            FitMissionBackdrop();
+    }
+
+    private void FitMissionBackdrop()
+    {
+        Vector2 min = Vector2.positiveInfinity;
+        Vector2 max = Vector2.negativeInfinity;
+        Matrix4x4 worldToPanel = missionPanel.transform.worldToLocalMatrix;
+
+        void IncludeCorners()
+        {
+            foreach (Vector3 corner in backdropCorners)
+            {
+                Vector2 point = worldToPanel.MultiplyPoint3x4(corner);
+                min = Vector2.Min(min, point);
+                max = Vector2.Max(max, point);
+            }
+        }
+
+        void IncludeTitlePart(GameObject part)
+        {
+            if (part != null && part.activeSelf && part.transform is RectTransform rect)
+            {
+                rect.GetWorldCorners(backdropCorners);
+                IncludeCorners();
+            }
+        }
+
+        void IncludeRow(MissionObjectiveRow row)
+        {
+            if (row?.HasContent == true)
+            {
+                row.GetRestingWorldCorners(backdropCorners);
+                IncludeCorners();
+            }
+        }
+
+        IncludeTitlePart(missionTitle);
+        IncludeTitlePart(missionTitleDivider);
+        IncludeRow(sharedObjectiveRow);
+        foreach (MissionObjectiveRow row in evidenceRows)
+            IncludeRow(row);
+
+        Vector2 topRight = max + BackdropPadding;
+        Vector2 size = topRight - (min - BackdropPadding);
+        if (missionBackdrop.anchoredPosition != topRight)
+            missionBackdrop.anchoredPosition = topRight;
+        if (missionBackdrop.sizeDelta != size)
+            missionBackdrop.sizeDelta = size;
     }
 
     private static bool AdvanceRow(MissionObjectiveRow row, float deltaTime, ref float nextRowY)
@@ -188,6 +248,9 @@ public class MissionFlowController : MonoBehaviour
         if (!investigationCompleted || evidenceDismissalRequested)
             return;
 
+        if (evidenceInstructionActive && !sharedObjectiveRow.IsShowingCompletion)
+            return;
+
         // Give every completed item the same time on screen before clearing the checklist.
         foreach (var row in evidenceRows)
         {
@@ -196,6 +259,8 @@ public class MissionFlowController : MonoBehaviour
         }
 
         evidenceDismissalRequested = true;
+        if (evidenceInstructionActive)
+            sharedObjectiveRow.Dismiss();
         foreach (var row in evidenceRows)
             row?.Dismiss();
     }
@@ -248,6 +313,8 @@ public class MissionFlowController : MonoBehaviour
         }
 
         showMissionTitle = true;
+        evidenceInstructionActive = sharedObjectiveRow != null;
+        sharedObjectiveRow?.Show(CollectEvidence);
         foreach (var row in evidenceRows)
             row?.Show(HiddenObjective);
 
@@ -294,6 +361,8 @@ public class MissionFlowController : MonoBehaviour
         }
 
         investigationCompleted = true;
+        if (evidenceInstructionActive)
+            sharedObjectiveRow.MarkComplete(CollectEvidence);
         MissionCompleted?.Invoke();
     }
 
