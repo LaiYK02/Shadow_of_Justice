@@ -4,18 +4,20 @@ using UnityEngine;
 [RequireComponent(typeof(BoxCollider))]
 public class CharacterAttackHitbox : MonoBehaviour
 {
-    [SerializeField, Min(0f)] private float damage = 25f;
+    [SerializeField, Min(0f)] private float damage = 10f;
     [SerializeField] private LayerMask targetLayers = ~0;
+    [SerializeField] private CharacterCombat owner;
+    [SerializeField] private CharacterCombat opponent;
     [SerializeField] private SuspectEscapeTarget suspectTarget;
 
     private readonly HashSet<CharacterCombat> targetsHit = new HashSet<CharacterCombat>();
     private BoxCollider attackCollider;
-    private CharacterCombat owner;
     private CharacterCombat suspect;
 
     private void Awake()
     {
-        owner = GetComponentInParent<CharacterCombat>();
+        if (owner == null)
+            owner = GetComponentInParent<CharacterCombat>();
         if (suspectTarget != null)
             suspect = suspectTarget.GetComponentInParent<CharacterCombat>();
 
@@ -24,18 +26,21 @@ public class CharacterAttackHitbox : MonoBehaviour
         attackCollider.enabled = false;
     }
 
-    internal void SetAttackActive(bool active)
+    internal void ResetSwing()
     {
         targetsHit.Clear();
         if (attackCollider != null)
-            attackCollider.enabled = active;
+            attackCollider.enabled = false;
     }
 
-    private void OnDisable() => SetAttackActive(false);
+    private void OnDisable() => ResetSwing();
 
     private void LateUpdate()
     {
-        if (!attackCollider.enabled || owner == null || !owner.CanAct || !owner.IsAttacking)
+        bool hitWindowOpen = owner != null && owner.IsAttackHitWindowOpen();
+        if (attackCollider.enabled != hitWindowOpen)
+            attackCollider.enabled = hitWindowOpen;
+        if (!hitWindowOpen)
             return;
 
         // CharacterControllers and scripted NPCs can move between physics steps.
@@ -50,18 +55,23 @@ public class CharacterAttackHitbox : MonoBehaviour
         foreach (Collider overlap in overlaps)
         {
             CharacterCombat target = overlap.GetComponentInParent<CharacterCombat>();
-            if (target == null || target == owner)
+            if (target == null || target == owner || (opponent != null && target != opponent))
                 continue;
 
-            bool isSuspect = suspect != null && target == suspect;
-            if (isSuspect && (!suspectTarget.IsEscaping || suspectTarget.IsStopped))
+            bool catchingSuspect = target == suspect && !suspectTarget.IsInCombat;
+            if (catchingSuspect && (!suspectTarget.IsEscaping || suspectTarget.IsStopped || target.IsDead))
                 continue;
 
             if (!targetsHit.Add(target))
                 continue;
 
-            if (target.ReceiveHit(damage, owner) && isSuspect)
+            if (catchingSuspect)
+            {
                 suspectTarget.StopEscaping();
+                target.PlayHitReaction();
+            }
+            else
+                target.ReceiveHit(damage, owner);
 
             // A perfect block can interrupt this swing while processing the overlaps.
             if (!owner.IsAttacking)

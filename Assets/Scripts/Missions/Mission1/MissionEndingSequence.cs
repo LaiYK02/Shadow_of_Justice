@@ -2,6 +2,7 @@ using System.Collections;
 using Unity.Cinemachine;
 using TMPro;
 using UnityEngine;
+using UnityEngine.UI;
 
 /// <summary>Plays the first mission's suspect reveal and escape sequence.</summary>
 public class MissionEndingSequence : MonoBehaviour
@@ -18,10 +19,13 @@ public class MissionEndingSequence : MonoBehaviour
     [SerializeField] private SuspectEscapeTarget suspectEscapeTarget;
     [SerializeField] private Transform escapeDestination;
     [SerializeField] private GameObject choicePanel;
+    [SerializeField] private Button arrestButton;
     [SerializeField] private TMP_Text arrestChoiceText;
     [SerializeField] private TMP_Text letGoChoiceText;
     [SerializeField] private string arrestChoiceLabel = "Arrest him";
     [SerializeField] private string letGoChoiceLabel = "Let him go";
+    [SerializeField] private EnemyCombatController suspectEnemy;
+    [SerializeField] private CharacterCombat playerCombat;
 
     [Header("Player Controls")]
     [Tooltip("Assign PlayerMovement and ThirdPersonCameraLook so controls stay locked for the full cutscene.")]
@@ -65,7 +69,17 @@ public class MissionEndingSequence : MonoBehaviour
         }
     };
 
+    [SerializeField] private DialogueLine[] arrestDialogue =
+    {
+        new DialogueLine
+        {
+            speakerName = "Suspicious Person",
+            dialogueText = "Are you an idiot? Why wouldn't you take the benefits? I won't let you catch me. You shall die!"
+        }
+    };
+
     private bool sequenceStarted;
+    private bool arrestChosen;
     private CinemachineBlendDefinition originalBlend;
     private int originalPlayerCameraPriority;
     private int originalSuspectCameraPriority;
@@ -74,8 +88,8 @@ public class MissionEndingSequence : MonoBehaviour
 
     private void Awake()
     {
-        if (suspectToMove != null)
-            suspectCombat = suspectToMove.GetComponentInParent<CharacterCombat>();
+        if (suspectEscapeTarget != null)
+            suspectCombat = suspectEscapeTarget.GetComponentInParent<CharacterCombat>();
 
         if (choicePanel != null)
             choicePanel.SetActive(false);
@@ -101,12 +115,16 @@ public class MissionEndingSequence : MonoBehaviour
     {
         if (missionFlow != null)
             missionFlow.MissionCompleted += HandleMissionCompleted;
+        if (arrestButton != null)
+            arrestButton.onClick.AddListener(ChooseArrest);
     }
 
     private void OnDisable()
     {
         if (missionFlow != null)
             missionFlow.MissionCompleted -= HandleMissionCompleted;
+        if (arrestButton != null)
+            arrestButton.onClick.RemoveListener(ChooseArrest);
 
         RestorePlayerControls();
         RestoreCameras();
@@ -214,6 +232,31 @@ public class MissionEndingSequence : MonoBehaviour
 
         Cursor.lockState = CursorLockMode.None;
         Cursor.visible = true;
+    }
+
+    private void ChooseArrest()
+    {
+        if (arrestChosen || !choicePanel.activeInHierarchy || dialogueManager.IsPlaying)
+            return;
+
+        arrestChosen = true;
+        StartCoroutine(PlayArrestDialogue());
+    }
+
+    private IEnumerator PlayArrestDialogue()
+    {
+        choicePanel.SetActive(false);
+        playerHUD?.SetChoiceActive(false);
+        Cursor.lockState = CursorLockMode.Locked;
+        Cursor.visible = false;
+
+        dialogueManager.StartDialogue(arrestDialogue, suspectCombat);
+        while (dialogueManager.IsPlaying)
+            yield return null;
+
+        RestorePlayerControls();
+        if (suspectEnemy.TryBeginFight(playerCombat))
+            suspectEscapeTarget.BeginCombat();
     }
 
     private IEnumerator MoveSuspectToEscapePoint()

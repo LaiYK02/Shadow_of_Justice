@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.UI;
 
@@ -8,7 +9,10 @@ public class CharacterCombat : MonoBehaviour
 {
     // Match the fixed blend from Standing Block Idle to Idle in the Y Bot Animator.
     private const float BlockRecoveryDuration = 0.5f;
+    private const int FirstAttackHitFrame = 22;
+    private const int LastAttackHitFrame = 35;
 
+    private static readonly int MeleeAttackState = Animator.StringToHash("Standing Melee Attack");
     private static readonly int Moving = Animator.StringToHash("IsMoving");
     private static readonly int Sprinting = Animator.StringToHash("IsSprinting");
     private static readonly int Attacking = Animator.StringToHash("IsAttacking");
@@ -27,6 +31,7 @@ public class CharacterCombat : MonoBehaviour
     [SerializeField, Min(0f)] private float perfectBlockWindow = 0.5f;
     [SerializeField, Min(0f)] private float perfectBlockStunDuration = 3f;
 
+    private readonly List<AnimatorClipInfo> attackClips = new(1);
     private Animator animator;
     private bool isTalking;
     private bool perfectBlockAvailable;
@@ -64,10 +69,7 @@ public class CharacterCombat : MonoBehaviour
             ClearHitReaction();
 
         if (IsStunned && Time.time >= stunEndsAt)
-        {
-            stunEndsAt = 0f;
-            SetAnimatorBool(Stunned, false);
-        }
+            ClearStun();
     }
 
     private void OnDisable()
@@ -92,15 +94,39 @@ public class CharacterCombat : MonoBehaviour
 
     public bool TryAttack(float duration)
     {
-        if (!CanAct || IsAttacking || IsBlocking || duration <= 0f ||
+        if (!CanAct || IsAttacking || IsBlocking || duration <= 0f || !HasAnimator ||
             attackHitbox == null || !attackHitbox.isActiveAndEnabled)
             return false;
 
         attackEndsAt = Time.time + duration;
         SetLocomotion(false, false);
         SetAnimatorBool(Attacking, true);
-        attackHitbox.SetAttackActive(true);
         return true;
+    }
+
+    internal bool IsAttackHitWindowOpen()
+    {
+        if (!IsAttacking || !CanAct || !HasAnimator)
+            return false;
+
+        const int layer = 0;
+        bool transitioning = animator.IsInTransition(layer);
+        AnimatorStateInfo state = transitioning
+            ? animator.GetNextAnimatorStateInfo(layer)
+            : animator.GetCurrentAnimatorStateInfo(layer);
+        if (state.shortNameHash != MeleeAttackState)
+            return false;
+
+        if (transitioning)
+            animator.GetNextAnimatorClipInfo(layer, attackClips);
+        else
+            animator.GetCurrentAnimatorClipInfo(layer, attackClips);
+        if (attackClips.Count == 0)
+            return false;
+
+        AnimationClip clip = attackClips[0].clip;
+        float sourceFrame = state.normalizedTime * Mathf.Round(clip.length * clip.frameRate);
+        return sourceFrame >= FirstAttackHitFrame && sourceFrame < LastAttackHitFrame + 1;
     }
 
     public bool TryBeginBlock()
@@ -152,25 +178,34 @@ public class CharacterCombat : MonoBehaviour
             return false;
         }
 
-        Health = Mathf.Max(0f, Health - damage);
+        Health = Mathf.Max(0f, Health - (IsStunned ? damage * 2f : damage));
         UpdateHealthBar();
-        CancelActions();
 
         if (IsDead)
         {
+            CancelActions();
+            ClearStun();
             ClearHitReaction();
             SetTalking(false);
             SetAnimatorBool(Dead, true);
         }
-        else if (!IsStunned)
-        {
-            hitReactionEndsAt = Time.time + hitReactionDuration;
-            SetAnimatorBool(HitReacting, true);
-            if (HasAnimator)
-                animator.SetTrigger(Hit);
-        }
+        else
+            PlayHitReaction();
 
         return true;
+    }
+
+    internal void PlayHitReaction()
+    {
+        if (IsDead)
+            return;
+
+        CancelActions();
+        ClearStun();
+        hitReactionEndsAt = Time.time + hitReactionDuration;
+        SetAnimatorBool(HitReacting, true);
+        if (HasAnimator)
+            animator.SetTrigger(Hit);
     }
 
     private void ApplyStun(float duration)
@@ -191,7 +226,7 @@ public class CharacterCombat : MonoBehaviour
 
         attackEndsAt = 0f;
         if (attackHitbox != null)
-            attackHitbox.SetAttackActive(false);
+            attackHitbox.ResetSwing();
         SetAnimatorBool(Attacking, false);
     }
 
@@ -201,6 +236,15 @@ public class CharacterCombat : MonoBehaviour
         SetAnimatorBool(HitReacting, false);
         if (HasAnimator)
             animator.ResetTrigger(Hit);
+    }
+
+    private void ClearStun()
+    {
+        if (!IsStunned)
+            return;
+
+        stunEndsAt = 0f;
+        SetAnimatorBool(Stunned, false);
     }
 
     private void UpdateHealthBar()
