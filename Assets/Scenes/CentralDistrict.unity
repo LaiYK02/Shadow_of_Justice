@@ -4978,6 +4978,8 @@ MonoBehaviour:
   gravity: -20
   attackEnergyCost: 0.25
   attackDuration: 1
+  flyingKickEnergyCost: 0.35
+  flyingKickDistance: 7
   normalBlockEnergyCost: 0.15
   perfectBlockEnergyRefund: 0.25
 --- !u!143 &892341025

@@ -10,6 +10,8 @@ using UnityEngine.InputSystem;
 public class PlayerMovement : MonoBehaviour
 {
     private const float HoldBlockThreshold = 0.15f;
+    private const int FlyingKickMoveStartFrame = 4;
+    private const int FlyingKickMoveEndFrame = 24;
 
     [Header("References")]
     [SerializeField] private Transform cameraTarget;
@@ -27,6 +29,8 @@ public class PlayerMovement : MonoBehaviour
     [Header("Combat Energy")]
     [SerializeField, Min(0f)] private float attackEnergyCost = 0.25f;
     [SerializeField, Min(0.01f)] private float attackDuration = 1f;
+    [SerializeField, Range(0f, 1f)] private float flyingKickEnergyCost = 0.35f;
+    [SerializeField, Min(0f)] private float flyingKickDistance = 7f;
     [SerializeField, Range(0f, 1f)] private float normalBlockEnergyCost = 0.15f;
     [SerializeField, Range(0f, 1f)] private float perfectBlockEnergyRefund = 0.25f;
 
@@ -37,6 +41,8 @@ public class PlayerMovement : MonoBehaviour
     private bool hasStarted;
     private bool blockPressPending;
     private float blockPressedAt;
+    private Vector3 flyingKickDirection;
+    private float flyingKickDistanceApplied;
 
     internal void FaceForCutscene(Vector3 direction)
     {
@@ -94,17 +100,23 @@ public class PlayerMovement : MonoBehaviour
             return;
 
         UpdateBlock();
-        if (!combat.IsBlocking && AttackPressed() && AvailableEnergy >= attackEnergyCost &&
-            combat.TryAttack(attackDuration))
-            ChangeEnergy(-attackEnergyCost);
+        Vector2 input = ReadMovementInput();
+        bool moving = input.sqrMagnitude > 0.001f;
+        bool sprinting = moving && SprintPressed() && (energyBar == null || AvailableEnergy > 0f);
+        if (!combat.IsBlocking && AttackPressed())
+            TryPlayerAttack(sprinting);
+
+        if (combat.IsFlyingKicking)
+        {
+            UpdateFlyingKickMovement();
+            return;
+        }
 
         if (!combat.CanAct || combat.IsAttacking || combat.IsBlocking)
         {
             MoveWithGravity(Vector3.zero);
             return;
         }
-
-        Vector2 input = ReadMovementInput();
 
         // Use the horizontal camera direction to move and face the player.
         Vector3 forward = cameraTarget.forward;
@@ -122,23 +134,52 @@ public class PlayerMovement : MonoBehaviour
                 turnSpeed * Time.deltaTime);
         }
 
-        bool moving = input.sqrMagnitude > 0.001f;
-        bool sprinting = moving && SprintPressed() && (energyBar == null || AvailableEnergy > 0f);
         combat.SetLocomotion(moving, sprinting);
 
         float energyChange = sprinting ? -energyDrainPerSecond : energyRecoveryPerSecond;
         ChangeEnergy(energyChange * Time.deltaTime);
-        MoveWithGravity(moveDirection * (sprinting ? sprintSpeed : moveSpeed));
+        MoveWithGravity(moveDirection * (sprinting ? sprintSpeed : moveSpeed) * Time.deltaTime);
     }
 
-    private void MoveWithGravity(Vector3 horizontalVelocity)
+    private void TryPlayerAttack(bool sprinting)
+    {
+        if (sprinting)
+        {
+            if (AvailableEnergy >= flyingKickEnergyCost && combat.TryFlyingKick())
+            {
+                flyingKickDirection = Vector3.ProjectOnPlane(transform.forward, Vector3.up).normalized;
+                flyingKickDistanceApplied = 0f;
+                ChangeEnergy(-flyingKickEnergyCost);
+            }
+            return;
+        }
+
+        if (AvailableEnergy >= attackEnergyCost && combat.TryAttack(attackDuration))
+            ChangeEnergy(-attackEnergyCost);
+    }
+
+    private void UpdateFlyingKickMovement()
+    {
+        if (combat.FlyingKickHasHit || !combat.TryGetFlyingKickFrame(out float frame))
+        {
+            MoveWithGravity(Vector3.zero);
+            return;
+        }
+
+        float progress = Mathf.InverseLerp(FlyingKickMoveStartFrame, FlyingKickMoveEndFrame, frame);
+        float distance = Mathf.SmoothStep(0f, flyingKickDistance, progress);
+        float step = Mathf.Max(0f, distance - flyingKickDistanceApplied);
+        flyingKickDistanceApplied += step;
+        MoveWithGravity(flyingKickDirection * step);
+    }
+
+    private void MoveWithGravity(Vector3 horizontalDisplacement)
     {
         if (characterController.isGrounded && verticalVelocity < 0f)
             verticalVelocity = -2f;
 
         verticalVelocity += gravity * Time.deltaTime;
-        Vector3 movement = horizontalVelocity + Vector3.up * verticalVelocity;
-        characterController.Move(movement * Time.deltaTime);
+        characterController.Move(horizontalDisplacement + Vector3.up * (verticalVelocity * Time.deltaTime));
     }
 
     private Vector2 ReadMovementInput()

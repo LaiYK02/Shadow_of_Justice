@@ -65,13 +65,17 @@ public class CharacterAttackHitbox : MonoBehaviour
             if (!targetsHit.Add(target))
                 continue;
 
+            bool hitLanded = true;
             if (catchingSuspect)
             {
                 suspectTarget.StopEscaping();
-                target.PlayHitReaction();
+                target.PlayHitReaction(owner);
             }
             else
-                target.ReceiveHit(damage, owner);
+                hitLanded = target.ReceiveHit(damage, owner);
+
+            if (hitLanded)
+                owner.ConfirmAttackHit();
 
             // A perfect block can interrupt this swing while processing the overlaps.
             if (!owner.IsAttacking)

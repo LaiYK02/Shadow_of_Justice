@@ -9,25 +9,32 @@ public class CharacterCombat : MonoBehaviour
 {
     // Match the fixed blend from the block states to Idle in the Y Bot Animator.
     private const float BlockRecoveryDuration = 0.5f;
-    private const float ParryEntryTimeout = 0.5f;
+    private const float AnimationEntryTimeout = 0.5f;
+    private const float FlyingKickHitReactionBonus = 0.25f;
     private const float MinimumBlockDot = 0.70710678f;
     private const int FirstPerfectBlockFrame = 0;
     private const int LastPerfectBlockFrame = 30;
     private const int FirstAttackHitFrame = 22;
     private const int LastAttackHitFrame = 35;
+    private const int FirstFlyingKickHitFrame = 10;
+    private const int LastFlyingKickHitFrame = 20;
 
     private static readonly int MeleeAttackState = Animator.StringToHash("Standing Melee Attack");
+    private static readonly int FlyingKickState = Animator.StringToHash("Flying Kick");
+    private static readonly int FlyingKickStatePath = Animator.StringToHash("Base Layer.Flying Kick");
     private static readonly int ParryState = Animator.StringToHash("Blocking");
     private static readonly int ParryStatePath = Animator.StringToHash("Base Layer.Blocking");
     private static readonly int Moving = Animator.StringToHash("IsMoving");
     private static readonly int Sprinting = Animator.StringToHash("IsSprinting");
     private static readonly int Attacking = Animator.StringToHash("IsAttacking");
+    private static readonly int FlyingKicking = Animator.StringToHash("IsFlyingKicking");
     private static readonly int Talking = Animator.StringToHash("IsTalking");
     private static readonly int Blocking = Animator.StringToHash("IsBlocking");
     private static readonly int Parrying = Animator.StringToHash("IsParrying");
     private static readonly int Stunned = Animator.StringToHash("IsStunned");
     private static readonly int HitReacting = Animator.StringToHash("IsHitReacting");
     private static readonly int Hit = Animator.StringToHash("Hit");
+    private static readonly int HitReactionSpeed = Animator.StringToHash("HitReactionSpeed");
     private static readonly int Dead = Animator.StringToHash("IsDead");
 
     [SerializeField] private CharacterAttackHitbox attackHitbox;
@@ -58,6 +65,8 @@ public class CharacterCombat : MonoBehaviour
     public bool IsBlocking => blockMode != BlockMode.None;
     internal bool IsGuarding => blockMode == BlockMode.Guard;
     public bool IsAttacking => attackEndsAt > 0f;
+    internal bool IsFlyingKicking { get; private set; }
+    internal bool FlyingKickHasHit { get; private set; }
     public bool IsHitReacting => hitReactionEndsAt > 0f;
     public bool IsStunned => stunEndsAt > 0f;
     public bool CanAct => isActiveAndEnabled && !IsDead && !IsStunned && !IsHitReacting &&
@@ -73,8 +82,14 @@ public class CharacterCombat : MonoBehaviour
 
     private void Update()
     {
-        if (IsAttacking && Time.time >= attackEndsAt)
-            CancelAttack();
+        if (IsAttacking)
+        {
+            bool attackFinished = IsFlyingKicking && TryGetAnimationState(FlyingKickState, out var kickState)
+                ? kickState.normalizedTime >= 1f
+                : Time.time >= attackEndsAt;
+            if (attackFinished)
+                CancelAttack();
+        }
 
         if (IsHitReacting && Time.time >= hitReactionEndsAt)
             ClearHitReaction();
@@ -112,20 +127,44 @@ public class CharacterCombat : MonoBehaviour
 
     public bool TryAttack(float duration)
     {
+        return TryStartAttack(duration, false);
+    }
+
+    internal bool TryFlyingKick()
+    {
+        return HasAnimator && animator.HasState(0, FlyingKickStatePath) &&
+            TryStartAttack(AnimationEntryTimeout, true);
+    }
+
+    private bool TryStartAttack(float duration, bool flyingKick)
+    {
         if (!CanAct || IsAttacking || IsBlocking || duration <= 0f || !HasAnimator ||
             attackHitbox == null || !attackHitbox.isActiveAndEnabled)
             return false;
 
         attackEndsAt = Time.time + duration;
+        IsFlyingKicking = flyingKick;
         SetLocomotion(false, false);
-        SetAnimatorBool(Attacking, true);
+        SetAnimatorBool(flyingKick ? FlyingKicking : Attacking, true);
         return true;
     }
 
     internal bool IsAttackHitWindowOpen()
     {
-        return IsAttacking && CanAct &&
-            IsWithinAnimationFrames(MeleeAttackState, FirstAttackHitFrame, LastAttackHitFrame);
+        if (!IsAttacking || !CanAct)
+            return false;
+
+        return IsFlyingKicking
+            ? IsWithinAnimationFrames(FlyingKickState, FirstFlyingKickHitFrame, LastFlyingKickHitFrame)
+            : IsWithinAnimationFrames(MeleeAttackState, FirstAttackHitFrame, LastAttackHitFrame);
+    }
+
+    internal bool TryGetFlyingKickFrame(out float frame) => TryGetAnimationFrame(FlyingKickState, out frame);
+
+    internal void ConfirmAttackHit()
+    {
+        if (IsFlyingKicking)
+            FlyingKickHasHit = true;
     }
 
     private bool TryGetAnimationState(int stateHash, out AnimatorStateInfo state)
@@ -142,6 +181,12 @@ public class CharacterCombat : MonoBehaviour
 
     private bool IsWithinAnimationFrames(int stateHash, int firstFrame, int lastFrame)
     {
+        return TryGetAnimationFrame(stateHash, out float frame) && frame >= firstFrame && frame < lastFrame + 1;
+    }
+
+    private bool TryGetAnimationFrame(int stateHash, out float frame)
+    {
+        frame = 0f;
         if (!TryGetAnimationState(stateHash, out var state))
             return false;
 
@@ -154,8 +199,8 @@ public class CharacterCombat : MonoBehaviour
             return false;
 
         AnimationClip clip = stateClips[0].clip;
-        float sourceFrame = state.normalizedTime * Mathf.Round(clip.length * clip.frameRate);
-        return sourceFrame >= firstFrame && sourceFrame < lastFrame + 1;
+        frame = state.normalizedTime * Mathf.Round(clip.length * clip.frameRate);
+        return true;
     }
 
     public bool TryBeginBlock() => TryStartBlock(BlockMode.Guard);
@@ -166,7 +211,7 @@ public class CharacterCombat : MonoBehaviour
             return false;
 
         perfectBlockAvailable = true;
-        parryEntryDeadline = Time.time + ParryEntryTimeout;
+        parryEntryDeadline = Time.time + AnimationEntryTimeout;
         return true;
     }
 
@@ -236,7 +281,7 @@ public class CharacterCombat : MonoBehaviour
             SetAnimatorBool(Dead, true);
         }
         else
-            PlayHitReaction();
+            PlayHitReaction(attacker);
 
         return true;
     }
@@ -252,17 +297,23 @@ public class CharacterCombat : MonoBehaviour
         return facingDot >= MinimumBlockDot || Mathf.Approximately(facingDot, MinimumBlockDot);
     }
 
-    internal void PlayHitReaction()
+    internal void PlayHitReaction(CharacterCombat attacker = null)
     {
         if (IsDead)
             return;
 
         CancelActions();
         ClearStun();
-        hitReactionEndsAt = Time.time + hitReactionDuration;
+        float duration = hitReactionDuration;
+        if (attacker != null && attacker.IsFlyingKicking)
+            duration += FlyingKickHitReactionBonus;
+        hitReactionEndsAt = Time.time + duration;
         SetAnimatorBool(HitReacting, true);
         if (HasAnimator)
+        {
+            animator.SetFloat(HitReactionSpeed, hitReactionDuration / duration);
             animator.SetTrigger(Hit);
+        }
     }
 
     private void ApplyStun(float duration)
@@ -284,7 +335,9 @@ public class CharacterCombat : MonoBehaviour
         attackEndsAt = 0f;
         if (attackHitbox != null)
             attackHitbox.ResetSwing();
-        SetAnimatorBool(Attacking, false);
+        SetAnimatorBool(IsFlyingKicking ? FlyingKicking : Attacking, false);
+        IsFlyingKicking = false;
+        FlyingKickHasHit = false;
     }
 
     private void ClearHitReaction()
