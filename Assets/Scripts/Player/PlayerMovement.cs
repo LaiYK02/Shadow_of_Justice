@@ -9,6 +9,8 @@ using UnityEngine.InputSystem;
 [RequireComponent(typeof(CharacterCombat))]
 public class PlayerMovement : MonoBehaviour
 {
+    private const float HoldBlockThreshold = 0.15f;
+
     [Header("References")]
     [SerializeField] private Transform cameraTarget;
     [SerializeField] private DialogueManager dialogueManager;
@@ -25,6 +27,7 @@ public class PlayerMovement : MonoBehaviour
     [Header("Combat Energy")]
     [SerializeField, Min(0f)] private float attackEnergyCost = 0.25f;
     [SerializeField, Min(0.01f)] private float attackDuration = 1f;
+    [SerializeField, Range(0f, 1f)] private float normalBlockEnergyCost = 0.15f;
     [SerializeField, Range(0f, 1f)] private float perfectBlockEnergyRefund = 0.25f;
 
     private CharacterController characterController;
@@ -32,6 +35,17 @@ public class PlayerMovement : MonoBehaviour
     private float verticalVelocity;
     private bool controlsUnlocked;
     private bool hasStarted;
+    private bool blockPressPending;
+    private float blockPressedAt;
+
+    internal void FaceForCutscene(Vector3 direction)
+    {
+        // Camera look is disabled during the cutscene, so preserve its world rotation here.
+        Quaternion cameraRotation = cameraTarget != null ? cameraTarget.rotation : Quaternion.identity;
+        transform.rotation = Quaternion.LookRotation(direction, Vector3.up);
+        if (cameraTarget != null)
+            cameraTarget.rotation = cameraRotation;
+    }
 
     private void Awake()
     {
@@ -42,6 +56,7 @@ public class PlayerMovement : MonoBehaviour
     private void OnEnable()
     {
         combat.PerfectBlocked += RestorePerfectBlockEnergy;
+        combat.GuardBlocked += ConsumeGuardEnergy;
         if (hasStarted)
             controlsUnlocked = dialogueManager == null || !dialogueManager.IsPlaying;
 
@@ -62,6 +77,8 @@ public class PlayerMovement : MonoBehaviour
     private void OnDisable()
     {
         combat.PerfectBlocked -= RestorePerfectBlockEnergy;
+        combat.GuardBlocked -= ConsumeGuardEnergy;
+        blockPressPending = false;
         combat.CancelActions();
 
         if (dialogueManager == null)
@@ -180,20 +197,35 @@ public class PlayerMovement : MonoBehaviour
     private void UpdateBlock()
     {
         ReadBlockInput(out bool held, out bool pressed);
-        if (!held || AvailableEnergy <= 0f)
-        {
+        if (combat.IsGuarding && (!held || AvailableEnergy <= 0f))
             combat.EndBlock();
+
+        if (!combat.CanAct || combat.IsAttacking || combat.IsBlocking || AvailableEnergy <= 0f)
+        {
+            blockPressPending = false;
             return;
         }
 
         if (pressed)
-            combat.TryBeginBlock();
-
-        if (combat.IsBlocking)
         {
-            ChangeEnergy(-energyDrainPerSecond * Time.deltaTime);
-            if (AvailableEnergy <= 0f)
-                combat.EndBlock();
+            blockPressPending = true;
+            blockPressedAt = Time.time;
+        }
+
+        if (!blockPressPending)
+            return;
+
+        bool reachedHoldThreshold = Time.time - blockPressedAt >= HoldBlockThreshold;
+        if (held && reachedHoldThreshold)
+        {
+            blockPressPending = false;
+            combat.TryBeginBlock();
+        }
+        else if (!held)
+        {
+            blockPressPending = false;
+            if (!reachedHoldThreshold)
+                combat.TryBeginParry();
         }
     }
 
@@ -220,6 +252,7 @@ public class PlayerMovement : MonoBehaviour
     private void HandleDialogueStarted()
     {
         controlsUnlocked = false;
+        blockPressPending = false;
         combat.CancelActions();
     }
 
@@ -239,5 +272,12 @@ public class PlayerMovement : MonoBehaviour
     private void RestorePerfectBlockEnergy()
     {
         ChangeEnergy(perfectBlockEnergyRefund);
+    }
+
+    private void ConsumeGuardEnergy()
+    {
+        ChangeEnergy(-normalBlockEnergyCost);
+        if (AvailableEnergy <= 0f)
+            combat.EndBlock();
     }
 }

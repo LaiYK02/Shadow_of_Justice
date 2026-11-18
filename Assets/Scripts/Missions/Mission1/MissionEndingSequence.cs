@@ -213,6 +213,19 @@ public class MissionEndingSequence : MonoBehaviour
             yield return null;
 
         LockPlayerControls();
+        // Set both root headings before dialogue captures and restores the models' local rotations.
+        if (playerCombat != null)
+        {
+            Vector3 facing = Vector3.ProjectOnPlane(
+                playerCombat.transform.position - suspectToMove.position, Vector3.up);
+            if (facing.sqrMagnitude > 0.0001f)
+            {
+                suspectToMove.rotation = Quaternion.LookRotation(facing, Vector3.up);
+                if (playerCombat.TryGetComponent(out PlayerMovement playerMovement))
+                    playerMovement.FaceForCutscene(-facing);
+            }
+        }
+
         dialogueManager.StartDialogue(caughtSuspectDialogue, suspectCombat);
         while (dialogueManager.IsPlaying)
             yield return null;
