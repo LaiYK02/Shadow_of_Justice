@@ -13,6 +13,8 @@ public class MissionFlowController : MonoBehaviour
     private const float CompletionBannerDuration = 3f;
     private const int ArrestRewardCoins = 200;
     private const int ArrestRewardReputation = 10;
+    private const int ReleaseRewardCoins = 100;
+    private const int ReleaseRewardReputation = -10;
     private static readonly Vector2 BackdropPadding = new(16f, 12f);
 
     [Header("References")]
@@ -28,6 +30,7 @@ public class MissionFlowController : MonoBehaviour
 
     [Header("Mission Completed Panel")]
     [SerializeField] private CanvasGroup missionCompletedCanvasGroup;
+    [SerializeField] private TMP_Text completionReputationText;
 
     [Header("Mission Objectives Panel")]
     [SerializeField] private GameObject missionPanel;
@@ -73,7 +76,7 @@ public class MissionFlowController : MonoBehaviour
     private bool evidenceInstructionActive;
     private bool evidenceDismissalRequested;
     private bool sequencePlaying;
-    private bool arrestCompleted;
+    private bool missionResolved;
     private GameObject activeBanner;
     private float? timeScaleBeforeBanner;
     private float fixedDeltaTimeBeforeBanner;
@@ -317,25 +320,30 @@ public class MissionFlowController : MonoBehaviour
         sequencePlaying = false;
     }
 
-    internal void CompleteArrest()
+    internal void CompleteMission(bool arrested)
     {
-        if (arrestCompleted)
+        if (missionResolved)
             return;
 
-        arrestCompleted = true;
-        StartCoroutine(PlayArrestCompletion());
+        missionResolved = true;
+        int coins = arrested ? ArrestRewardCoins : ReleaseRewardCoins;
+        int reputation = arrested ? ArrestRewardReputation : ReleaseRewardReputation;
+        StartCoroutine(PlayMissionCompletion(coins, reputation));
     }
 
-    private IEnumerator PlayArrestCompletion()
+    private IEnumerator PlayMissionCompletion(int coins, int reputation)
     {
         if (missionCompletedCanvasGroup != null)
         {
+            if (completionReputationText != null)
+                completionReputationText.text = reputation > 0 ? "REPUTATION+" : "REPUTATION-";
+
             float holdTime = Mathf.Max(0f, CompletionBannerDuration - fadeInDuration - fadeOutDuration);
-            yield return PlayBanner(missionCompletedCanvasGroup.gameObject, missionCompletedCanvasGroup, holdTime);
+            yield return StartCoroutine(PlayBanner(missionCompletedCanvasGroup.gameObject, missionCompletedCanvasGroup, holdTime));
         }
 
         if (playerHUD != null)
-            playerHUD.AddRewards(ArrestRewardCoins, ArrestRewardReputation);
+            playerHUD.AddRewards(coins, reputation);
     }
 
     private IEnumerator PlayBanner(GameObject panel, CanvasGroup fade, float holdTime)

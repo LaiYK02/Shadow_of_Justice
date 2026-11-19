@@ -13203,6 +13203,7 @@ MonoBehaviour:
   missionNumberText: {fileID: 2025736135}
   missionNameText: {fileID: 1453328976}
   missionCompletedCanvasGroup: {fileID: 1763783267}
+  completionReputationText: {fileID: 1188477219}
   missionPanel: {fileID: 1595422638}
   missionBackdrop: {fileID: 7314250}
   missionTitle: {fileID: 1726527705}

@@ -312,13 +312,15 @@ public class MissionEndingSequence : MonoBehaviour
         Cursor.lockState = CursorLockMode.Locked;
         Cursor.visible = false;
 
-        playerHUD?.SetChoiceActive(false);
         if (!arrest)
         {
+            missionFlow.CompleteMission(arrested: false);
+            playerHUD?.SetChoiceActive(false);
             RestorePlayerControls();
             yield break;
         }
 
+        playerHUD?.SetChoiceActive(false);
         dialogueManager.StartDialogue(arrestDialogue, suspectCombat);
         while (dialogueManager.IsPlaying)
             yield return null;
@@ -332,7 +334,7 @@ public class MissionEndingSequence : MonoBehaviour
             yield return null;
 
         if (suspectCombat != null && suspectCombat.IsDead && playerCombat != null && !playerCombat.IsDead)
-            missionFlow.CompleteArrest();
+            missionFlow.CompleteMission(arrested: true);
     }
 
     private static bool TutorialContinuePressed()
