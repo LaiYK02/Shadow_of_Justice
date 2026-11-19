@@ -20,6 +20,7 @@ public class MainMenuManager : MonoBehaviour
     [SerializeField] private AudioClip buttonPressClip;
 
     private SettingsPanelController settingsPanelController;
+    private bool menuReady;
 
     private void Awake()
     {
@@ -39,17 +40,6 @@ public class MainMenuManager : MonoBehaviour
             settingsService.ConfigureMixer(audioMixer);
         }
 
-        MainMenuAudioController menuAudio = GetComponent<MainMenuAudioController>();
-        if (menuAudio == null)
-            menuAudio = gameObject.AddComponent<MainMenuAudioController>();
-
-        menuAudio.Initialize(
-            audioMixer,
-            mainMenuBGM1,
-            mainMenuBGM2,
-            buttonHoverClip,
-            buttonPressClip);
-
         settingsPanelController = GetComponent<SettingsPanelController>();
         if (settingsPanelController == null)
             settingsPanelController = gameObject.AddComponent<SettingsPanelController>();
@@ -57,18 +47,36 @@ public class MainMenuManager : MonoBehaviour
         settingsPanelController.Initialize(settingsService);
     }
 
-    private void Start() => ShowCursor();
+    private void Start()
+    {
+        UpdateCursor();
+        if (TryGetComponent(out MainMenuIntro intro) && intro.isActiveAndEnabled)
+            intro.Play(ActivateMenu);
+        else
+            ActivateMenu();
+    }
+
+    private void ActivateMenu()
+    {
+        menuReady = true;
+        UpdateCursor();
+
+        if (!TryGetComponent(out MainMenuAudioController menuAudio))
+            menuAudio = gameObject.AddComponent<MainMenuAudioController>();
+
+        menuAudio.Initialize(audioMixer, mainMenuBGM1, mainMenuBGM2, buttonHoverClip, buttonPressClip);
+    }
 
     private void OnApplicationFocus(bool hasFocus)
     {
         if (hasFocus)
-            ShowCursor();
+            UpdateCursor();
     }
 
-    private static void ShowCursor()
+    private void UpdateCursor()
     {
         Cursor.lockState = CursorLockMode.None;
-        Cursor.visible = true;
+        Cursor.visible = menuReady;
     }
 
     public void StartGame()

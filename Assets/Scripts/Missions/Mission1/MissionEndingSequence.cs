@@ -4,13 +4,16 @@ using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
 
+#if ENABLE_INPUT_SYSTEM
+using UnityEngine.InputSystem;
+#endif
+
 /// <summary>Plays the first mission's suspect reveal and escape sequence.</summary>
 public class MissionEndingSequence : MonoBehaviour
 {
     [Header("Sequence References")]
     [SerializeField] private MissionFlowController missionFlow;
     [SerializeField] private DialogueManager dialogueManager;
-    [SerializeField] private TutorialPanelController tutorialPanelController;
     [SerializeField] private PlayerHUDController playerHUD;
     [SerializeField] private CinemachineBrain cameraBrain;
     [SerializeField] private CinemachineCamera playerFollowCamera;
@@ -20,6 +23,8 @@ public class MissionEndingSequence : MonoBehaviour
     [SerializeField] private Transform escapeDestination;
     [SerializeField] private GameObject choicePanel;
     [SerializeField] private Button arrestButton;
+    [SerializeField] private Button letGoButton;
+    [SerializeField] private GameObject combatTutorialPanel;
     [SerializeField] private TMP_Text arrestChoiceText;
     [SerializeField] private TMP_Text letGoChoiceText;
     [SerializeField] private string arrestChoiceLabel = "Arrest him";
@@ -79,7 +84,7 @@ public class MissionEndingSequence : MonoBehaviour
     };
 
     private bool sequenceStarted;
-    private bool arrestChosen;
+    private float? timeScaleBeforeTutorial;
     private CinemachineBlendDefinition originalBlend;
     private int originalPlayerCameraPriority;
     private int originalSuspectCameraPriority;
@@ -93,6 +98,8 @@ public class MissionEndingSequence : MonoBehaviour
 
         if (choicePanel != null)
             choicePanel.SetActive(false);
+        if (combatTutorialPanel != null)
+            combatTutorialPanel.SetActive(false);
 
         if (cameraBrain != null)
             originalBlend = cameraBrain.DefaultBlend;
@@ -102,13 +109,6 @@ public class MissionEndingSequence : MonoBehaviour
 
         if (suspectStaticCamera != null)
             originalSuspectCameraPriority = suspectStaticCamera.Priority;
-
-        if (playerControlsToLock != null)
-        {
-            controlsWereEnabled = new bool[playerControlsToLock.Length];
-            for (int i = 0; i < playerControlsToLock.Length; i++)
-                controlsWereEnabled[i] = playerControlsToLock[i] != null && playerControlsToLock[i].enabled;
-        }
     }
 
     private void OnEnable()
@@ -117,6 +117,8 @@ public class MissionEndingSequence : MonoBehaviour
             missionFlow.MissionCompleted += HandleMissionCompleted;
         if (arrestButton != null)
             arrestButton.onClick.AddListener(ChooseArrest);
+        if (letGoButton != null)
+            letGoButton.onClick.AddListener(ChooseRelease);
     }
 
     private void OnDisable()
@@ -125,7 +127,20 @@ public class MissionEndingSequence : MonoBehaviour
             missionFlow.MissionCompleted -= HandleMissionCompleted;
         if (arrestButton != null)
             arrestButton.onClick.RemoveListener(ChooseArrest);
+        if (letGoButton != null)
+            letGoButton.onClick.RemoveListener(ChooseRelease);
 
+        StopAllCoroutines();
+        if (choicePanel != null)
+            choicePanel.SetActive(false);
+        if (playerHUD != null)
+        {
+            if (timeScaleBeforeTutorial.HasValue)
+                playerHUD.SetCutsceneActive(false);
+            playerHUD.SetChoiceActive(false);
+        }
+
+        CloseCombatTutorial();
         RestorePlayerControls();
         RestoreCameras();
     }
@@ -188,7 +203,6 @@ public class MissionEndingSequence : MonoBehaviour
         // two seconds while the suspect continues running to the marker.
         suspectEscapeTarget.BeginEscape();
         StartCoroutine(MoveSuspectToEscapePoint());
-        StartCoroutine(WaitForSuspectToBeCaught());
         if (escapeCameraHoldDuration > 0f)
             yield return new WaitForSecondsRealtime(escapeCameraHoldDuration);
 
@@ -196,11 +210,44 @@ public class MissionEndingSequence : MonoBehaviour
         playerFollowCamera.Priority = Mathf.Max(20, originalPlayerCameraPriority);
 
         yield return new WaitForSecondsRealtime(cameraBlendDuration);
+        while (cameraBrain.IsBlending)
+            yield return null;
 
         cameraBrain.DefaultBlend = originalBlend;
+        yield return PlayCombatTutorial();
+
         RestorePlayerControls();
         playerHUD?.SetCutsceneActive(false);
-        tutorialPanelController?.ShowChaseTutorial();
+        StartCoroutine(WaitForSuspectToBeCaught());
+    }
+
+    private IEnumerator PlayCombatTutorial()
+    {
+        if (combatTutorialPanel == null)
+            yield break;
+
+        timeScaleBeforeTutorial = Time.timeScale;
+        Time.timeScale = 0f;
+        combatTutorialPanel.SetActive(true);
+
+        do
+        {
+            yield return null;
+        } while (!TutorialContinuePressed());
+
+        CloseCombatTutorial();
+    }
+
+    private void CloseCombatTutorial()
+    {
+        if (combatTutorialPanel != null)
+            combatTutorialPanel.SetActive(false);
+
+        if (timeScaleBeforeTutorial.HasValue)
+        {
+            Time.timeScale = timeScaleBeforeTutorial.Value;
+            timeScaleBeforeTutorial = null;
+        }
     }
 
     private IEnumerator WaitForSuspectToBeCaught()
@@ -247,21 +294,30 @@ public class MissionEndingSequence : MonoBehaviour
         Cursor.visible = true;
     }
 
-    private void ChooseArrest()
+    private void ChooseArrest() => SelectChoice(arrest: true);
+
+    private void ChooseRelease() => SelectChoice(arrest: false);
+
+    private void SelectChoice(bool arrest)
     {
-        if (arrestChosen || !choicePanel.activeInHierarchy || dialogueManager.IsPlaying)
+        if (!choicePanel.activeInHierarchy || dialogueManager.IsPlaying)
             return;
 
-        arrestChosen = true;
-        StartCoroutine(PlayArrestDialogue());
+        StartCoroutine(ContinueAfterChoice(arrest));
     }
 
-    private IEnumerator PlayArrestDialogue()
+    private IEnumerator ContinueAfterChoice(bool arrest)
     {
         choicePanel.SetActive(false);
-        playerHUD?.SetChoiceActive(false);
         Cursor.lockState = CursorLockMode.Locked;
         Cursor.visible = false;
+
+        playerHUD?.SetChoiceActive(false);
+        if (!arrest)
+        {
+            RestorePlayerControls();
+            yield break;
+        }
 
         dialogueManager.StartDialogue(arrestDialogue, suspectCombat);
         while (dialogueManager.IsPlaying)
@@ -270,6 +326,20 @@ public class MissionEndingSequence : MonoBehaviour
         RestorePlayerControls();
         if (suspectEnemy.TryBeginFight(playerCombat))
             suspectEscapeTarget.BeginCombat();
+    }
+
+    private static bool TutorialContinuePressed()
+    {
+#if ENABLE_INPUT_SYSTEM
+        Keyboard keyboard = Keyboard.current;
+        if (keyboard != null && (keyboard.spaceKey.wasPressedThisFrame || keyboard.escapeKey.wasPressedThisFrame))
+            return true;
+#endif
+#if ENABLE_LEGACY_INPUT_MANAGER
+        return Input.GetKeyDown(KeyCode.Space) || Input.GetKeyDown(KeyCode.Escape);
+#else
+        return false;
+#endif
     }
 
     private IEnumerator MoveSuspectToEscapePoint()
@@ -319,13 +389,16 @@ public class MissionEndingSequence : MonoBehaviour
 
     private void LockPlayerControls()
     {
-        if (playerControlsToLock == null)
+        if (playerControlsToLock == null || controlsWereEnabled != null)
             return;
 
+        controlsWereEnabled = new bool[playerControlsToLock.Length];
         for (int i = 0; i < playerControlsToLock.Length; i++)
         {
-            if (playerControlsToLock[i] != null)
-                playerControlsToLock[i].enabled = false;
+            Behaviour control = playerControlsToLock[i];
+            controlsWereEnabled[i] = control != null && control.enabled;
+            if (control != null)
+                control.enabled = false;
         }
     }
 
@@ -339,6 +412,8 @@ public class MissionEndingSequence : MonoBehaviour
             if (playerControlsToLock[i] != null)
                 playerControlsToLock[i].enabled = controlsWereEnabled[i];
         }
+
+        controlsWereEnabled = null;
     }
 
     private void RestoreCameras()
