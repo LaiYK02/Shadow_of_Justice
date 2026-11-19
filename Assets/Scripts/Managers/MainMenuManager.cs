@@ -57,6 +57,20 @@ public class MainMenuManager : MonoBehaviour
         settingsPanelController.Initialize(settingsService);
     }
 
+    private void Start() => ShowCursor();
+
+    private void OnApplicationFocus(bool hasFocus)
+    {
+        if (hasFocus)
+            ShowCursor();
+    }
+
+    private static void ShowCursor()
+    {
+        Cursor.lockState = CursorLockMode.None;
+        Cursor.visible = true;
+    }
+
     public void StartGame()
     {
         if (sceneLoader == null)
