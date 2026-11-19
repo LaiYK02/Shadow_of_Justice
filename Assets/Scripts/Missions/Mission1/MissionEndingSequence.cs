@@ -324,8 +324,15 @@ public class MissionEndingSequence : MonoBehaviour
             yield return null;
 
         RestorePlayerControls();
-        if (suspectEnemy.TryBeginFight(playerCombat))
-            suspectEscapeTarget.BeginCombat();
+        if (!suspectEnemy.TryBeginFight(playerCombat))
+            yield break;
+
+        suspectEscapeTarget.BeginCombat();
+        while (suspectCombat != null && !suspectCombat.IsDead && suspectEnemy != null && suspectEnemy.IsFighting)
+            yield return null;
+
+        if (suspectCombat != null && suspectCombat.IsDead && playerCombat != null && !playerCombat.IsDead)
+            missionFlow.CompleteArrest();
     }
 
     private static bool TutorialContinuePressed()

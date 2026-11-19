@@ -74,7 +74,7 @@ public class ThirdPersonCameraLook : MonoBehaviour
         if (!controlsUnlocked || cameraTarget == null)
             return;
 
-        Vector2 mouseDelta = ReadMouseDelta();
+        Vector2 mouseDelta = ReadMouseDelta() * Time.timeScale;
 
         GameSettingsService settings = GameSettingsService.Instance;
         float horizontalSensitivity = settings != null
