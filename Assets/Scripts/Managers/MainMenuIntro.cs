@@ -14,7 +14,7 @@ public sealed class MainMenuIntro : MonoBehaviour
 
     [SerializeField, Min(0f)] private float cardFadeDuration = 0.5f;
     [SerializeField, Min(0f)] private float logoHoldDuration = 2f;
-    [SerializeField, Min(0f)] private float projectHoldDuration = 6f;
+    [SerializeField, Min(0f)] private float projectHoldDuration = 35f;
     [SerializeField, Min(0f)] private float menuFadeDuration = 0.75f;
     [SerializeField, Min(0f)] private float hintDuration = 3f;
 
@@ -38,6 +38,8 @@ public sealed class MainMenuIntro : MonoBehaviour
         overlay.alpha = 1f;
         logoCard.alpha = 0f;
         projectCard.alpha = 0f;
+        logoCard.gameObject.SetActive(false);
+        projectCard.gameObject.SetActive(false);
         skipHint.SetActive(false);
         overlay.gameObject.SetActive(true);
         canSkip = true;
@@ -57,6 +59,10 @@ public sealed class MainMenuIntro : MonoBehaviour
             return;
         }
 
+        // The project card has a persistent continue prompt of its own.
+        if (projectCard.gameObject.activeSelf)
+            return;
+
         Mouse mouse = Mouse.current;
         bool pointerActivity = mouse != null && (mouse.delta.ReadValue().sqrMagnitude > 0f ||
             mouse.leftButton.wasPressedThisFrame || mouse.rightButton.wasPressedThisFrame);
@@ -74,15 +80,18 @@ public sealed class MainMenuIntro : MonoBehaviour
     private IEnumerator PlayCards()
     {
         yield return ShowCard(logoCard, logoHoldDuration);
+        skipHint.SetActive(false);
         yield return ShowCard(projectCard, projectHoldDuration);
         yield return RevealMenu();
     }
 
     private IEnumerator ShowCard(CanvasGroup card, float holdDuration)
     {
+        card.gameObject.SetActive(true);
         yield return Fade(card, 1f, cardFadeDuration);
         yield return new WaitForSecondsRealtime(holdDuration);
         yield return Fade(card, 0f, cardFadeDuration);
+        card.gameObject.SetActive(false);
     }
 
     private IEnumerator RevealMenu()
@@ -93,6 +102,8 @@ public sealed class MainMenuIntro : MonoBehaviour
         yield return Fade(overlay, 0f, menuFadeDuration);
 
         overlay.gameObject.SetActive(false);
+        logoCard.gameObject.SetActive(false);
+        projectCard.gameObject.SetActive(false);
         menuContent.interactable = true;
         menuContent.blocksRaycasts = true;
         onFinished?.Invoke();

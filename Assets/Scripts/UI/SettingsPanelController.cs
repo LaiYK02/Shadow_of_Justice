@@ -11,6 +11,7 @@ public sealed class SettingsPanelController : MonoBehaviour
     };
 
     private GameObject[] mainMenuButtons;
+    private GameObject mainMenuArtwork;
     private GameObject settingsPanel;
     private GameObject gameplaySettingsPanel;
     private GameObject audioSettingsPanel;
@@ -40,6 +41,7 @@ public sealed class SettingsPanelController : MonoBehaviour
         }
 
         Transform canvasRoot = canvas.transform;
+        mainMenuArtwork = FindObject(canvasRoot, "MenuArtwork");
         mainMenuButtons = new GameObject[MainMenuButtonNames.Length];
         for (int i = 0; i < MainMenuButtonNames.Length; i++)
         {
@@ -113,7 +115,7 @@ public sealed class SettingsPanelController : MonoBehaviour
         }
 
         settingsPanel.SetActive(false);
-        SetMainMenuButtonsActive(true);
+        SetMainMenuVisible(true);
         SetSettingsTab(true);
         initialized = true;
     }
@@ -123,7 +125,7 @@ public sealed class SettingsPanelController : MonoBehaviour
         if (!initialized)
             return;
 
-        SetMainMenuButtonsActive(false);
+        SetMainMenuVisible(false);
         settingsPanel.SetActive(true);
         SetSettingsTab(true);
     }
@@ -134,7 +136,7 @@ public sealed class SettingsPanelController : MonoBehaviour
             return;
 
         settingsPanel.SetActive(false);
-        SetMainMenuButtonsActive(true);
+        SetMainMenuVisible(true);
     }
 
     public void ShowGameplaySettings()
@@ -155,8 +157,11 @@ public sealed class SettingsPanelController : MonoBehaviour
         audioSettingsPanel.SetActive(!showGameplay);
     }
 
-    private void SetMainMenuButtonsActive(bool active)
+    private void SetMainMenuVisible(bool active)
     {
+        if (mainMenuArtwork != null)
+            mainMenuArtwork.SetActive(active);
+
         if (mainMenuButtons == null)
             return;
 
