@@ -21,6 +21,7 @@ public class MissionFlowController : MonoBehaviour
     [SerializeField] private OfficerInteraction fellowOfficer;
     [SerializeField] private DialogueManager dialogueManager;
     [SerializeField] private PlayerHUDController playerHUD;
+    [SerializeField] private MissionTargetMarker officerMarker;
 
     [Header("Mission Start Panel")]
     [SerializeField] private GameObject missionStartPanel;
@@ -71,6 +72,7 @@ public class MissionFlowController : MonoBehaviour
     private bool[] objectivesCompleted;
     private float topRowY;
     private bool showMissionTitle;
+    private bool officerObjectiveActive;
     private bool missionStarted;
     private bool investigationCompleted;
     private bool evidenceInstructionActive;
@@ -156,6 +158,8 @@ public class MissionFlowController : MonoBehaviour
         if (dialogueManager != null)
             dialogueManager.OpeningDialogueEnded -= ShowTalkToOfficerObjective;
 
+        if (officerMarker != null)
+            officerMarker.SetRequested(false);
         StopAllCoroutines();
         CloseBanner();
         sequencePlaying = false;
@@ -171,6 +175,10 @@ public class MissionFlowController : MonoBehaviour
             (missionStartPanel == null || !missionStartPanel.activeInHierarchy) &&
             (missionPanel.transform.parent == null ||
                 missionPanel.transform.parent.gameObject.activeInHierarchy);
+
+        if (officerMarker != null)
+            officerMarker.SetRequested(canShow && officerObjectiveActive &&
+                fellowOfficer != null && fellowOfficer.isActiveAndEnabled);
 
         bool hasRows = false;
         if (canShow)
@@ -287,8 +295,11 @@ public class MissionFlowController : MonoBehaviour
 
     private void ShowTalkToOfficerObjective()
     {
-        if (!missionStarted && !sequencePlaying)
-            sharedObjectiveRow?.Show(TalkToOfficer);
+        if (missionStarted || sequencePlaying)
+            return;
+
+        officerObjectiveActive = true;
+        sharedObjectiveRow?.Show(TalkToOfficer);
     }
 
     public void StartMissionSequence()
@@ -296,6 +307,7 @@ public class MissionFlowController : MonoBehaviour
         if (sequencePlaying || missionStarted)
             return;
 
+        officerObjectiveActive = false;
         sequencePlaying = true;
         StartCoroutine(MissionStartRoutine());
     }

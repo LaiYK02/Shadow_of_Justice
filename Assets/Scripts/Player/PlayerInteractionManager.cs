@@ -14,6 +14,7 @@ public class PlayerInteractionManager : MonoBehaviour
     [SerializeField] private KeyCode interactionKey = KeyCode.E;
 
     private PlayerInteractable selected;
+    private PlayerInteractable promptTarget;
     private CharacterCombat playerCombat;
     public PlayerInteractable Selected => selected;
 
@@ -28,7 +29,8 @@ public class PlayerInteractionManager : MonoBehaviour
     {
         if (playerCombat != null && playerCombat.IsDead)
         {
-            SetSelected(null);
+            selected = null;
+            SetPromptTarget(null);
             return;
         }
 
@@ -36,7 +38,8 @@ public class PlayerInteractionManager : MonoBehaviour
         if (selected != null && InteractPressed())
         {
             PlayerInteractable target = selected;
-            SetSelected(null);
+            selected = null;
+            SetPromptTarget(null);
             if (target != null && target.isActiveAndEnabled && target.CanInteract) target.Interact();
         }
     }
@@ -44,7 +47,9 @@ public class PlayerInteractionManager : MonoBehaviour
     private void SelectBest()
     {
         PlayerInteractable best = null;
+        PlayerInteractable bestHint = null;
         float bestAngle = coneHalfAngle;
+        float bestHintAngle = coneHalfAngle;
         if (player != null && playerCamera != null)
         {
             var candidates = PlayerInteractable.ActiveInteractables;
@@ -59,13 +64,21 @@ public class PlayerInteractionManager : MonoBehaviour
                 if (distanceFromPlayer > candidate.InteractionRange || toTarget.sqrMagnitude < 0.0001f) continue;
 
                 float angle = Vector3.Angle(playerCamera.transform.forward, toTarget);
-                if (angle > coneHalfAngle || angle > bestAngle) continue;
+                if (angle <= bestHintAngle)
+                {
+                    bestHint = candidate;
+                    bestHintAngle = angle;
+                }
+
+                if (angle > bestAngle) continue;
                 if (!HasLineOfSight(candidate, toTarget)) continue;
                 best = candidate;
                 bestAngle = angle;
             }
         }
-        SetSelected(best);
+        selected = best;
+        // Keep a blocked target's hint visible without allowing interaction through the obstacle.
+        SetPromptTarget(best ?? bestHint);
     }
 
     private bool HasLineOfSight(PlayerInteractable target, Vector3 toTarget)
@@ -85,19 +98,21 @@ public class PlayerInteractionManager : MonoBehaviour
         return false;
     }
 
-    private void SetSelected(PlayerInteractable next)
+    private void SetPromptTarget(PlayerInteractable next)
     {
-        if (selected == next)
+        if (promptTarget != next)
         {
-            if (selected != null) selected.SetPromptVisible(true, playerCamera);
-            return;
+            if (promptTarget != null) promptTarget.SetPromptVisible(false);
+            promptTarget = next;
         }
-        if (selected != null) selected.SetPromptVisible(false);
-        selected = next;
-        if (selected != null) selected.SetPromptVisible(true, playerCamera);
+        if (promptTarget != null) promptTarget.SetPromptVisible(true, playerCamera);
     }
 
-    private void OnDisable() => SetSelected(null);
+    private void OnDisable()
+    {
+        selected = null;
+        SetPromptTarget(null);
+    }
 
     private bool InteractPressed()
     {
