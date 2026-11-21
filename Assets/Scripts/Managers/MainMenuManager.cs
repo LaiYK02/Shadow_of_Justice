@@ -6,6 +6,7 @@ public class MainMenuManager : MonoBehaviour
 {
     [Header("Scene References")]
     [SerializeField] private SceneLoader sceneLoader;
+    [SerializeField] private CharacterSelection characterSelection;
 
     [Header("Scene Names")]
     [SerializeField] private string gameSceneName = "CentralDistrict";
@@ -81,15 +82,16 @@ public class MainMenuManager : MonoBehaviour
 
     public void StartGame()
     {
-        if (sceneLoader == null)
+        if (!menuReady)
+            return;
+
+        if (sceneLoader == null || characterSelection == null)
         {
-            Debug.LogError(
-                "MainMenuManager: SceneLoader reference is missing."
-            );
+            Debug.LogError("MainMenuManager: Assign the scene loader and character selection.", this);
             return;
         }
 
-        sceneLoader.LoadScene(gameSceneName);
+        characterSelection.Show(() => sceneLoader.LoadScene(gameSceneName));
     }
 
     public void OpenSettings()

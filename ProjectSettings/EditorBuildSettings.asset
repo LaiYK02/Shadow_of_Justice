@@ -8,12 +8,18 @@ EditorBuildSettings:
   - enabled: 1
     path: Assets/Scenes/MainMenu.unity
     guid: 99c9720ab356a0642a771bea13969a05
+  - enabled: 0
+    path: Assets/Scenes/CharacterChoose.unity
+    guid: 49a3ba987ab59634b93b9f6c15d077d8
   - enabled: 1
     path: Assets/Scenes/CentralDistrict.unity
     guid: c4178c56aececdb458cde3b708af1090
   - enabled: 1
     path: Assets/Scenes/OldTown.unity
     guid: 997610b26fcfe494780af672aaa45136
+  - enabled: 1
+    path: Assets/Scenes/HarbourDistrict.unity
+    guid: c4cc67acca16f2e4f8df729919f88ecc
   m_configObjects:
     com.unity.input.settings.actions: {fileID: -944628639613478452, guid: 052faaac586de48259a63d0c4782560b, type: 3}
   m_UseUCBPForAssetBundles: 0
