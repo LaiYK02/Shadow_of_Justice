@@ -24267,7 +24267,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 173734de5589aba44a7e1cee41ac308b, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::PlayerCharacterAppearance
-  maleModel: {fileID: 820632796238648919, guid: 3cd1e29594afeb04c859b40f47cf2f5f, type: 3}
+  maleModel: {fileID: 7074893383346778093, guid: 116e7b93182d34748b32c48002b0ea6c, type: 3}
   femaleModel: {fileID: 7161390304562688475, guid: c8ed2d1cb9b3edc46ba35c807a9c82f6, type: 3}
 --- !u!1001 &2400000010
 PrefabInstance:
