@@ -50,6 +50,9 @@ public class CharacterAttackHitbox : MonoBehaviour
 
     private void LateUpdate()
     {
+        if (Time.timeScale <= 0f)
+            return;
+
         bool hitWindowOpen = owner != null && owner.IsAttackHitWindowOpen();
         if (attackCollider.enabled != hitWindowOpen)
             attackCollider.enabled = hitWindowOpen;

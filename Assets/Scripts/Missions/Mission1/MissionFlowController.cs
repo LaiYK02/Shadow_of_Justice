@@ -8,6 +8,9 @@ public class MissionFlowController : MonoBehaviour
     private const string TalkToOfficer = "Talk to the Fellow Officer";
     private const string CollectEvidence = "Collect the evidence";
     private const string ChaseSuspect = "Chase and hit the Suspect";
+    private const string DefeatSuspect = "Defeat the suspicious person";
+    private const string ReturnToOfficer = "Talk to the Fellow Officer again";
+    private const string TravelToOldTown = "Travel to Old Town via Grab Car Box";
     private const string FindTreasures = "Find all the treasures.";
     private const string HiddenObjective = "......";
     private const float BannerTimeMultiplier = 0.5f;
@@ -17,13 +20,17 @@ public class MissionFlowController : MonoBehaviour
     private const int ArrestRewardReputation = 10;
     private const int ReleaseRewardCoins = 100;
     private const int ReleaseRewardReputation = -10;
+    private const int DebriefReputation = 5;
     private static readonly Vector2 BackdropPadding = new(16f, 12f);
+
+    private enum Resolution { Pending, Completing, AwaitingDebrief, Debriefed }
 
     [Header("References")]
     [SerializeField] private OfficerInteraction fellowOfficer;
     [SerializeField] private DialogueManager dialogueManager;
     [SerializeField] private PlayerHUDController playerHUD;
     [SerializeField] private MissionTargetMarker officerMarker;
+    [SerializeField] private MissionTargetMarker grabCarMarker;
 
     [Header("Mission Start Panel")]
     [SerializeField] private GameObject missionStartPanel;
@@ -82,13 +89,19 @@ public class MissionFlowController : MonoBehaviour
     private bool evidenceInstructionActive;
     private bool evidenceDismissalRequested;
     private bool sequencePlaying;
-    private bool missionResolved;
+    private Resolution resolution;
+    private bool suspectArrested;
+    private bool travelObjectiveActive;
     private GameObject activeBanner;
     private float? timeScaleBeforeBanner;
     private float fixedDeltaTimeBeforeBanner;
 
     public bool CanInteract => missionStarted && !investigationCompleted;
-    public bool IsMissionStartSequencePlaying => sequencePlaying;
+    internal bool CanTalkToOfficer => !sequencePlaying && (playerHUD == null || playerHUD.IsVisible) &&
+        (!investigationCompleted || resolution is Resolution.AwaitingDebrief or Resolution.Debriefed);
+    internal bool IsDebriefAvailable => resolution == Resolution.AwaitingDebrief;
+    internal bool SuspectArrested => suspectArrested;
+    internal bool HasCompletedDebrief => resolution == Resolution.Debriefed;
     public bool HasPendingChaseCompletion => sharedObjectiveRow?.IsDismissing == true;
     public bool HasPendingEvidenceCompletion
     {
@@ -165,6 +178,8 @@ public class MissionFlowController : MonoBehaviour
 
         if (officerMarker != null)
             officerMarker.SetRequested(false);
+        if (grabCarMarker != null)
+            grabCarMarker.SetRequested(false);
         StopAllCoroutines();
         CloseBanner();
         sequencePlaying = false;
@@ -184,6 +199,8 @@ public class MissionFlowController : MonoBehaviour
         if (officerMarker != null)
             officerMarker.SetRequested(canShow && officerObjectiveActive &&
                 fellowOfficer != null && fellowOfficer.isActiveAndEnabled);
+        if (grabCarMarker != null)
+            grabCarMarker.SetRequested(canShow && travelObjectiveActive);
 
         bool hasRows = false;
         if (canShow)
@@ -360,17 +377,21 @@ public class MissionFlowController : MonoBehaviour
 
     internal void CompleteMission(bool arrested)
     {
-        if (missionResolved)
+        if (resolution != Resolution.Pending)
             return;
 
-        missionResolved = true;
-        int coins = arrested ? ArrestRewardCoins : ReleaseRewardCoins;
-        int reputation = arrested ? ArrestRewardReputation : ReleaseRewardReputation;
-        StartCoroutine(PlayMissionCompletion(coins, reputation));
+        resolution = Resolution.Completing;
+        suspectArrested = arrested;
+        StartCoroutine(PlayMissionCompletion());
     }
 
-    private IEnumerator PlayMissionCompletion(int coins, int reputation)
+    private IEnumerator PlayMissionCompletion()
     {
+        if (suspectArrested)
+            yield return DismissSharedObjective(DefeatSuspect);
+
+        int coins = suspectArrested ? ArrestRewardCoins : ReleaseRewardCoins;
+        int reputation = suspectArrested ? ArrestRewardReputation : ReleaseRewardReputation;
         if (missionCompletedCanvasGroup != null)
         {
             if (completionReputationText != null)
@@ -382,6 +403,41 @@ public class MissionFlowController : MonoBehaviour
 
         if (playerHUD != null)
             playerHUD.AddRewards(coins, reputation);
+
+        showMissionTitle = false;
+        officerObjectiveActive = true;
+        sharedObjectiveRow?.Show(ReturnToOfficer);
+        resolution = Resolution.AwaitingDebrief;
+    }
+
+    internal void CompleteDebrief()
+    {
+        if (!IsDebriefAvailable)
+            return;
+
+        resolution = Resolution.Debriefed;
+        DistrictTravelSession.ArrestedFirstSuspect = suspectArrested;
+        DistrictTravelSession.NextDestination = District.OldTown;
+        officerObjectiveActive = false;
+        if (playerHUD != null)
+            playerHUD.AddRewards(0, suspectArrested ? DebriefReputation : -DebriefReputation);
+
+        StartCoroutine(BeginTravelObjective());
+    }
+
+    private IEnumerator BeginTravelObjective()
+    {
+        yield return DismissSharedObjective(ReturnToOfficer);
+        sharedObjectiveRow?.Show(TravelToOldTown);
+        travelObjectiveActive = true;
+    }
+
+    private IEnumerator DismissSharedObjective(string objective)
+    {
+        sharedObjectiveRow?.MarkComplete(objective);
+        sharedObjectiveRow?.Dismiss();
+        while (sharedObjectiveRow?.IsDismissing == true)
+            yield return null;
     }
 
     private IEnumerator PlayBanner(GameObject panel, CanvasGroup fade, float holdTime)
@@ -474,6 +530,7 @@ public class MissionFlowController : MonoBehaviour
     }
 
     public void ActivateChaseObjective() => sharedObjectiveRow?.Show(ChaseSuspect);
+    internal void ActivateDefeatObjective() => sharedObjectiveRow?.Show(DefeatSuspect);
 
     public void CompleteChaseObjective()
     {

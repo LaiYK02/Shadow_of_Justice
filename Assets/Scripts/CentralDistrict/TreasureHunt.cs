@@ -1,4 +1,5 @@
 using System.Collections;
+using System.Collections.Generic;
 using TMPro;
 using UnityEngine;
 
@@ -14,8 +15,22 @@ public sealed class TreasureHunt : MonoBehaviour
     [SerializeField] private MissionFlowController missionFlow;
 
     private int totalTreasures;
-    private int foundTreasures;
+    private bool completionRewardPending;
     private Coroutine progressRoutine;
+
+    private HashSet<string> Pickups
+    {
+        get
+        {
+            string district = gameObject.scene.path;
+            if (!DistrictTravelSession.CollectedTreasures.TryGetValue(district, out HashSet<string> pickups))
+            {
+                pickups = new HashSet<string>();
+                DistrictTravelSession.CollectedTreasures.Add(district, pickups);
+            }
+            return pickups;
+        }
+    }
 
     private void Awake()
     {
@@ -24,12 +39,14 @@ public sealed class TreasureHunt : MonoBehaviour
             progressPanel.gameObject.SetActive(false);
     }
 
-    internal void RecordPickup(PlayerHUDController playerHUD)
+    internal bool WasCollected(string treasureName) => Pickups.Contains(treasureName);
+
+    internal void RecordPickup(string treasureName, PlayerHUDController playerHUD)
     {
-        if (foundTreasures >= totalTreasures)
+        if (!Pickups.Add(treasureName))
             return;
 
-        foundTreasures++;
+        int foundTreasures = Pickups.Count;
         if (progressPanel != null && progressText != null)
         {
             progressText.text = $"{foundTreasures}/{totalTreasures}";
@@ -39,7 +56,10 @@ public sealed class TreasureHunt : MonoBehaviour
         }
 
         if (foundTreasures == totalTreasures)
+        {
+            completionRewardPending = true;
             StartCoroutine(AwardCompletionBonus(playerHUD));
+        }
     }
 
     private IEnumerator ShowProgress(PlayerHUDController playerHUD)
@@ -66,7 +86,14 @@ public sealed class TreasureHunt : MonoBehaviour
         if (missionFlow != null)
             yield return missionFlow.ShowTreasureHuntCompletion();
 
-        if (playerHUD != null)
-            playerHUD.AddRewards(CompletionBonus, 0);
+        SettleCompletionReward(playerHUD);
+    }
+
+    internal void SettleCompletionReward(PlayerHUDController playerHUD)
+    {
+        if (!completionRewardPending || playerHUD == null)
+            return;
+        completionRewardPending = false;
+        playerHUD.AddRewards(CompletionBonus, 0);
     }
 }

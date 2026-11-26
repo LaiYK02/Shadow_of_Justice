@@ -21,9 +21,13 @@ public sealed class MainMenuIntro : MonoBehaviour
     private Action onFinished;
     private bool canSkip;
     private float hideHintAt;
+    internal static bool SkipNextIntro { get; set; }
 
     public void Play(Action finished)
     {
+        bool skip = SkipNextIntro;
+        SkipNextIntro = false;
+
         if (overlay == null || logoCard == null || projectCard == null || skipHint == null || menuContent == null)
         {
             Debug.LogError("MainMenuIntro: Assign the intro UI and menu content.", this);
@@ -43,7 +47,7 @@ public sealed class MainMenuIntro : MonoBehaviour
         skipHint.SetActive(false);
         overlay.gameObject.SetActive(true);
         canSkip = true;
-        StartCoroutine(PlayCards());
+        StartCoroutine(skip ? RevealMenu(skipFade: true) : PlayCards());
     }
 
     private void Update()
@@ -94,12 +98,13 @@ public sealed class MainMenuIntro : MonoBehaviour
         card.gameObject.SetActive(false);
     }
 
-    private IEnumerator RevealMenu()
+    private IEnumerator RevealMenu(bool skipFade = false)
     {
         canSkip = false;
         skipHint.SetActive(false);
         menuContent.alpha = 1f;
-        yield return Fade(overlay, 0f, menuFadeDuration);
+        if (!skipFade)
+            yield return Fade(overlay, 0f, menuFadeDuration);
 
         overlay.gameObject.SetActive(false);
         logoCard.gameObject.SetActive(false);

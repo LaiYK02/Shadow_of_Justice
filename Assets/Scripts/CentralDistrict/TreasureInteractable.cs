@@ -16,6 +16,11 @@ public sealed class TreasureInteractable : PlayerInteractable
         base.Awake();
         playerHUD = FindFirstObjectByType<PlayerHUDController>();
         treasureHunt = GetComponentInParent<TreasureHunt>();
+        if (treasureHunt != null && treasureHunt.WasCollected(name))
+        {
+            collected = true;
+            gameObject.SetActive(false);
+        }
     }
 
     public override void Interact()
@@ -27,6 +32,6 @@ public sealed class TreasureInteractable : PlayerInteractable
         gameObject.SetActive(false);
         playerHUD.AddRewards(CoinReward, 0);
         if (treasureHunt != null)
-            treasureHunt.RecordPickup(playerHUD);
+            treasureHunt.RecordPickup(name, playerHUD);
     }
 }

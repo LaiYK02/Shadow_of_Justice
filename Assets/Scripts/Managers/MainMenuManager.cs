@@ -25,12 +25,7 @@ public class MainMenuManager : MonoBehaviour
 
     private void Awake()
     {
-        GameSettingsService settingsService = GameSettingsService.Instance;
-        if (settingsService == null)
-        {
-            GameObject settingsObject = new GameObject("GameSettingsService");
-            settingsService = settingsObject.AddComponent<GameSettingsService>();
-        }
+        GameSettingsService settingsService = GameSettingsService.GetOrCreate();
 
         if (audioMixer == null)
         {
@@ -91,7 +86,11 @@ public class MainMenuManager : MonoBehaviour
             return;
         }
 
-        characterSelection.Show(() => sceneLoader.LoadScene(gameSceneName));
+        characterSelection.Show(() =>
+        {
+            DistrictTravelSession.Reset();
+            sceneLoader.LoadScene(gameSceneName);
+        });
     }
 
     public void OpenSettings()

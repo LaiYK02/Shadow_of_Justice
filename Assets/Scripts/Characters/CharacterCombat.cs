@@ -94,6 +94,13 @@ public class CharacterCombat : MonoBehaviour
         UpdateHealthBar();
     }
 
+    internal void RestoreTravelHealth(float maximum, float current)
+    {
+        maxHealth = maximum;
+        Health = current;
+        UpdateHealthBar();
+    }
+
     private void Update()
     {
         if (IsAttacking)

@@ -64,7 +64,9 @@ public sealed class MerchantShop : MonoBehaviour
     [SerializeField] private Button purchase;
     [SerializeField] private Button close;
 
-    private readonly int[] purchases = new int[StatNames.Length];
+    private static readonly int[] purchases = new int[StatNames.Length];
+
+    internal static void ResetUpgrades() => System.Array.Clear(purchases, 0, purchases.Length);
     private Stat selected;
     private bool open;
     private float previousTimeScale;

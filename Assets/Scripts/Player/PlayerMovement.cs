@@ -66,6 +66,17 @@ public class PlayerMovement : MonoBehaviour
 
     internal void IncreaseEnergyRecovery(float amount) => energyRecoveryPerSecond += amount;
 
+    internal void RestoreTravelEnergy(float maximum, float current, float recovery, bool exhausted)
+    {
+        if (energyBar != null)
+        {
+            energyBar.maxValue = maximum;
+            energyBar.value = current;
+        }
+        energyRecoveryPerSecond = recovery;
+        energyExhausted = exhausted;
+    }
+
     internal void FaceForCutscene(Vector3 direction)
     {
         // Camera look is disabled during the cutscene, so preserve its world rotation here.
@@ -381,8 +392,8 @@ public class PlayerMovement : MonoBehaviour
         controlsUnlocked = true;
     }
 
-    private float AvailableEnergy => energyBar == null ? 0f : energyBar.value;
-    private bool EnergyLocked => energyExhausted && AvailableEnergy < EnergyRecoveryThreshold;
+    internal float AvailableEnergy => energyBar == null ? 0f : energyBar.value;
+    internal bool EnergyLocked => energyExhausted && AvailableEnergy < EnergyRecoveryThreshold;
     private bool HasUsableEnergy => !EnergyLocked && AvailableEnergy > 0f;
     private bool CanAffordGuard => HasUsableEnergy && AvailableEnergy >= normalBlockEnergyCost;
 

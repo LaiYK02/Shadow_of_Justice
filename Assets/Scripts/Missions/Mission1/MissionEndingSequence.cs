@@ -177,7 +177,7 @@ public class MissionEndingSequence : MonoBehaviour
         if (delayAfterMission > 0f)
             yield return new WaitForSecondsRealtime(delayAfterMission);
 
-        while (missionFlow.HasPendingEvidenceCompletion)
+        while (Time.timeScale <= 0f || missionFlow.HasPendingEvidenceCompletion)
             yield return null;
 
         playerHUD?.SetCutsceneActive(true);
@@ -330,6 +330,7 @@ public class MissionEndingSequence : MonoBehaviour
             yield break;
 
         suspectEscapeTarget.BeginCombat();
+        missionFlow.ActivateDefeatObjective();
         while (suspectCombat != null && !suspectCombat.IsDead && suspectEnemy != null && suspectEnemy.IsFighting)
             yield return null;
 

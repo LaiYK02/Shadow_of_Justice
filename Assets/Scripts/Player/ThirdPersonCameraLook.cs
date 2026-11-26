@@ -45,7 +45,7 @@ public class ThirdPersonCameraLook : MonoBehaviour
 
         pitch = Mathf.Clamp(pitch, minimumPitch, maximumPitch);
 
-        controlsUnlocked = false;
+        controlsUnlocked = dialogueManager == null;
         SetCursorState(true);
     }
 

@@ -23,6 +23,11 @@ public sealed class GameSettingsService : MonoBehaviour
 
     public static GameSettingsService Instance { get; private set; }
 
+    internal static GameSettingsService GetOrCreate()
+    {
+        return Instance != null ? Instance : new GameObject(nameof(GameSettingsService)).AddComponent<GameSettingsService>();
+    }
+
     public float MouseSensitivityX { get; private set; }
     public float MouseSensitivityY { get; private set; }
     public float MasterVolume { get; private set; }

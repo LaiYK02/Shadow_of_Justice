@@ -56,6 +56,9 @@ public class EnemyCombatController : MonoBehaviour
 
     private void Update()
     {
+        if (Time.timeScale <= 0f)
+            return;
+
         if (target == null || target.IsDead || combat == null || combat.IsDead)
         {
             EndFight();

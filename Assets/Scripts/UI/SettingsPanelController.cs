@@ -1,3 +1,4 @@
+using System;
 using UnityEngine;
 using UnityEngine.UI;
 
@@ -24,14 +25,14 @@ public sealed class SettingsPanelController : MonoBehaviour
     private Slider bgmVolumeSlider;
     private Slider sfxVolumeSlider;
     private GameSettingsService settingsService;
+    private Action onClosed;
     private bool initialized;
+    internal bool IsOpen => initialized && settingsPanel.activeSelf;
 
     public void Initialize(GameSettingsService service)
     {
         if (initialized)
             return;
-
-        settingsService = service;
 
         Canvas canvas = FindAnyObjectByType<Canvas>(FindObjectsInactive.Include);
         if (canvas == null)
@@ -57,19 +58,36 @@ public sealed class SettingsPanelController : MonoBehaviour
             mainMenuButtons[i] = buttonTransform.gameObject;
         }
 
-        settingsPanel = FindObject(canvasRoot, "SettingsPanel");
-        gameplaySettingsPanel = FindObject(canvasRoot, "GameplaySettingsPanel");
-        audioSettingsPanel = FindObject(canvasRoot, "AudioSettingsPanel");
-        gameplayTabButton = FindComponent<Button>(canvasRoot, "ButtonGameplaySettings");
-        audioTabButton = FindComponent<Button>(canvasRoot, "ButtonAudioSettings");
-        backButton = FindComponent<Button>(canvasRoot, "ButtonBack");
-        mouseXSensitivitySlider = FindComponent<Slider>(canvasRoot, "SliderMouseXSensitivity");
-        mouseYSensitivitySlider = FindComponent<Slider>(canvasRoot, "SliderMouseYSensitivity");
-        masterVolumeSlider = FindComponent<Slider>(canvasRoot, "SliderMasterVolume");
-        bgmVolumeSlider = FindComponent<Slider>(canvasRoot, "SliderBGMVolume");
-        sfxVolumeSlider = FindComponent<Slider>(canvasRoot, "SliderSFXVolume");
+        Initialize(service, FindObject(canvasRoot, "SettingsPanel"), null);
+    }
 
-        if (settingsPanel == null || gameplaySettingsPanel == null || audioSettingsPanel == null ||
+    internal void Initialize(GameSettingsService service, GameObject panel, Action closed)
+    {
+        if (initialized)
+            return;
+
+        if (panel == null)
+        {
+            Debug.LogError("SettingsPanelController: Assign a settings panel.", this);
+            return;
+        }
+
+        settingsService = service;
+        settingsPanel = panel;
+        onClosed = closed;
+        Transform panelRoot = panel.transform;
+        gameplaySettingsPanel = FindObject(panelRoot, "GameplaySettingsPanel");
+        audioSettingsPanel = FindObject(panelRoot, "AudioSettingsPanel");
+        gameplayTabButton = FindComponent<Button>(panelRoot, "ButtonGameplaySettings");
+        audioTabButton = FindComponent<Button>(panelRoot, "ButtonAudioSettings");
+        backButton = FindComponent<Button>(panelRoot, "ButtonBack");
+        mouseXSensitivitySlider = FindComponent<Slider>(panelRoot, "SliderMouseXSensitivity");
+        mouseYSensitivitySlider = FindComponent<Slider>(panelRoot, "SliderMouseYSensitivity");
+        masterVolumeSlider = FindComponent<Slider>(panelRoot, "SliderMasterVolume");
+        bgmVolumeSlider = FindComponent<Slider>(panelRoot, "SliderBGMVolume");
+        sfxVolumeSlider = FindComponent<Slider>(panelRoot, "SliderSFXVolume");
+
+        if (gameplaySettingsPanel == null || audioSettingsPanel == null ||
             gameplayTabButton == null || audioTabButton == null || backButton == null ||
             mouseXSensitivitySlider == null || mouseYSensitivitySlider == null ||
             masterVolumeSlider == null || bgmVolumeSlider == null || sfxVolumeSlider == null)
@@ -89,7 +107,7 @@ public sealed class SettingsPanelController : MonoBehaviour
 
         gameplayTabButton.onClick.AddListener(ShowGameplaySettings);
         audioTabButton.onClick.AddListener(ShowAudioSettings);
-        backButton.onClick.AddListener(BackToMainMenu);
+        backButton.onClick.AddListener(CloseSettings);
 
         mouseXSensitivitySlider.onValueChanged.AddListener(HandleMouseXSensitivityChanged);
         mouseYSensitivitySlider.onValueChanged.AddListener(HandleMouseYSensitivityChanged);
@@ -128,15 +146,18 @@ public sealed class SettingsPanelController : MonoBehaviour
         SetMainMenuVisible(false);
         settingsPanel.SetActive(true);
         SetSettingsTab(true);
+        gameplayTabButton.Select();
     }
 
-    public void BackToMainMenu()
+    internal void CloseSettings()
     {
-        if (!initialized)
+        if (!IsOpen)
             return;
 
         settingsPanel.SetActive(false);
         SetMainMenuVisible(true);
+        PlayerPrefs.Save();
+        onClosed?.Invoke();
     }
 
     public void ShowGameplaySettings()

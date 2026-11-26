@@ -28,6 +28,21 @@ public class TutorialPanelController : MonoBehaviour
     private Vector2 originalPosition;
     private Vector3 originalScale;
     private Coroutine tutorialCoroutine;
+    private float panelAlpha;
+    private bool pauseMenuActive;
+
+    internal void SetPauseMenuActive(bool active)
+    {
+        pauseMenuActive = active;
+        SetPanelAlpha(panelAlpha);
+    }
+
+    private void SetPanelAlpha(float alpha)
+    {
+        panelAlpha = alpha;
+        if (canvasGroup != null)
+            canvasGroup.alpha = pauseMenuActive ? 0f : panelAlpha;
+    }
 
     private void Awake()
     {
@@ -50,7 +65,7 @@ public class TutorialPanelController : MonoBehaviour
 
         originalPosition = panelRect.anchoredPosition;
         originalScale = panelRect.localScale;
-        canvasGroup.alpha = 0f;
+        SetPanelAlpha(0f);
         tutorialPanel.SetActive(false);
 
         if (firstTutorialContent != null)
@@ -112,14 +127,14 @@ public class TutorialPanelController : MonoBehaviour
         thirdTutorialContent.SetActive(true);
 
         yield return ShowPanel();
-        yield return new WaitForSecondsRealtime(thirdDisplayDuration);
+        yield return WaitWhileVisible(thirdDisplayDuration);
         yield return HidePanel();
 
         tutorialPanel.SetActive(false);
         thirdTutorialContent.SetActive(false);
         panelRect.anchoredPosition = originalPosition;
         panelRect.localScale = originalScale;
-        canvasGroup.alpha = 0f;
+        SetPanelAlpha(0f);
         tutorialCoroutine = null;
     }
 
@@ -127,21 +142,21 @@ public class TutorialPanelController : MonoBehaviour
     {
         SetTutorialContent(true);
         yield return ShowPanel();
-        yield return new WaitForSecondsRealtime(firstDisplayDuration);
+        yield return WaitWhileVisible(firstDisplayDuration);
         yield return HidePanel();
         tutorialPanel.SetActive(false);
 
-        yield return new WaitForSecondsRealtime(delayBeforeSecondTutorial);
+        yield return WaitWhileVisible(delayBeforeSecondTutorial);
 
         SetTutorialContent(false);
         yield return ShowPanel();
-        yield return new WaitForSecondsRealtime(secondDisplayDuration);
+        yield return WaitWhileVisible(secondDisplayDuration);
         yield return HidePanel();
 
         tutorialPanel.SetActive(false);
         panelRect.anchoredPosition = originalPosition;
         panelRect.localScale = originalScale;
-        canvasGroup.alpha = 0f;
+        SetPanelAlpha(0f);
         tutorialCoroutine = null;
     }
 
@@ -154,12 +169,23 @@ public class TutorialPanelController : MonoBehaviour
             secondTutorialContent.SetActive(!showFirst);
     }
 
+    private IEnumerator WaitWhileVisible(float duration)
+    {
+        float elapsed = 0f;
+        while (elapsed < duration)
+        {
+            yield return null;
+            if (!pauseMenuActive)
+                elapsed += Time.unscaledDeltaTime;
+        }
+    }
+
     private IEnumerator ShowPanel()
     {
         tutorialPanel.SetActive(true);
         panelRect.anchoredPosition = originalPosition + Vector2.up * slideDistance;
         panelRect.localScale = originalScale * startingScale;
-        canvasGroup.alpha = 0f;
+        SetPanelAlpha(0f);
 
         yield return AnimatePanel(
             0f, 1f,
@@ -188,18 +214,19 @@ public class TutorialPanelController : MonoBehaviour
 
         while (elapsed < transitionDuration)
         {
-            elapsed += Time.unscaledDeltaTime;
+            if (!pauseMenuActive)
+                elapsed += Time.unscaledDeltaTime;
             float progress = Mathf.Clamp01(elapsed / transitionDuration);
             float eased = Mathf.SmoothStep(0f, 1f, progress);
 
-            canvasGroup.alpha = Mathf.Lerp(startAlpha, endAlpha, eased);
+            SetPanelAlpha(Mathf.Lerp(startAlpha, endAlpha, eased));
             panelRect.anchoredPosition = Vector2.Lerp(startPosition, endPosition, eased);
             panelRect.localScale = originalScale * Mathf.Lerp(startScale, endScale, eased);
 
             yield return null;
         }
 
-        canvasGroup.alpha = endAlpha;
+        SetPanelAlpha(endAlpha);
         panelRect.anchoredPosition = endPosition;
         panelRect.localScale = originalScale * endScale;
     }

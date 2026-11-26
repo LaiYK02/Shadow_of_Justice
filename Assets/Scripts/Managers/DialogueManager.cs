@@ -54,6 +54,7 @@ public class DialogueManager : MonoBehaviour
     public event Action DialogueStarted;
     public event Action DialogueEnded;
     public event Action OpeningDialogueEnded;
+    internal event Action<DialogueLine> DialogueLineShown;
 
     private void Awake()
     {
@@ -226,7 +227,7 @@ public class DialogueManager : MonoBehaviour
             portraitImage.sprite = line.portrait;
             portraitImage.gameObject.SetActive(line.portrait != null);
         }
-
+        DialogueLineShown?.Invoke(line);
     }
 
     private void EndDialogue()
