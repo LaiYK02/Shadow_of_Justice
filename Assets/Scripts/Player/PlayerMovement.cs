@@ -14,6 +14,8 @@ public class PlayerMovement : MonoBehaviour
     private const int FlyingKickMoveStartFrame = 4;
     private const int FlyingKickMoveEndFrame = 24;
 
+    private enum ActionInput { None, Attack, FlyingKick, Parry, Guard }
+
     [Header("References")]
     [SerializeField] private Transform cameraTarget;
     [SerializeField] private DialogueManager dialogueManager;
@@ -42,6 +44,7 @@ public class PlayerMovement : MonoBehaviour
     private bool hasStarted;
     private bool blockPressPending;
     private float blockPressedAt;
+    private ActionInput bufferedAction;
     private Vector3 flyingKickDirection;
     private float flyingKickDistanceApplied;
     private bool energyExhausted;
@@ -49,6 +52,19 @@ public class PlayerMovement : MonoBehaviour
 
     internal event System.Action InsufficientEnergy;
     internal float EnergyLockoutFraction => EnergyLocked ? 1f - AvailableEnergy / EnergyRecoveryThreshold : 0f;
+    internal float MaxEnergy => energyBar != null ? energyBar.maxValue : 0f;
+    internal float EnergyRecoveryPerSecond => energyRecoveryPerSecond;
+
+    internal void IncreaseMaxEnergy(float amount)
+    {
+        if (energyBar == null)
+            return;
+
+        energyBar.maxValue += amount;
+        ChangeEnergy(amount);
+    }
+
+    internal void IncreaseEnergyRecovery(float amount) => energyRecoveryPerSecond += amount;
 
     internal void FaceForCutscene(Vector3 direction)
     {
@@ -90,7 +106,7 @@ public class PlayerMovement : MonoBehaviour
     {
         combat.PerfectBlocked -= RestorePerfectBlockEnergy;
         combat.GuardBlocked -= ConsumeGuardEnergy;
-        blockPressPending = false;
+        ClearCombatInput();
         sprintWarningShown = false;
         combat.CancelActions();
 
@@ -103,10 +119,12 @@ public class PlayerMovement : MonoBehaviour
 
     private void Update()
     {
-        if (!controlsUnlocked || cameraTarget == null || combat.IsDead)
+        if (!controlsUnlocked || cameraTarget == null || combat.IsDead || Time.timeScale <= 0f)
+        {
+            ClearCombatInput();
             return;
+        }
 
-        UpdateBlock();
         Vector2 input = ReadMovementInput();
         bool moving = input.sqrMagnitude > 0.001f;
         bool wantsSprint = moving && SprintPressed();
@@ -114,8 +132,7 @@ public class PlayerMovement : MonoBehaviour
         if (!wantsSprint || sprinting)
             sprintWarningShown = false;
 
-        if (!combat.IsBlocking && AttackPressed())
-            TryPlayerAttack(wantsSprint);
+        UpdateCombatInput(wantsSprint);
 
         if (combat.IsFlyingKicking)
         {
@@ -160,9 +177,6 @@ public class PlayerMovement : MonoBehaviour
 
     private void TryPlayerAttack(bool wantsFlyingKick)
     {
-        if (!combat.CanAct || combat.IsAttacking)
-            return;
-
         float cost = wantsFlyingKick ? flyingKickEnergyCost : attackEnergyCost;
         if (EnergyLocked || AvailableEnergy < cost)
         {
@@ -262,53 +276,77 @@ public class PlayerMovement : MonoBehaviour
 #endif
     }
 
-    private void UpdateBlock()
+    private void UpdateCombatInput(bool wantsSprint)
     {
         ReadBlockInput(out bool held, out bool pressed);
         if (combat.IsGuarding && (!held || !CanAffordGuard))
             combat.EndBlock();
 
-        if (!combat.CanAct || combat.IsAttacking || combat.IsBlocking)
+        if (combat.IsHitReacting || combat.IsStunned)
+        {
+            ClearCombatInput();
+            return;
+        }
+
+        if (AttackPressed())
         {
             blockPressPending = false;
-            return;
+            bufferedAction = wantsSprint ? ActionInput.FlyingKick : ActionInput.Attack;
         }
 
         if (pressed)
         {
-            if (!HasUsableEnergy)
-            {
-                InsufficientEnergy?.Invoke();
-                return;
-            }
-
+            bufferedAction = ActionInput.None;
             blockPressPending = true;
             blockPressedAt = Time.time;
         }
 
-        if (!blockPressPending)
+        if (blockPressPending)
+        {
+            bool reachedHoldThreshold = Time.time - blockPressedAt >= HoldBlockThreshold;
+            if (!held || reachedHoldThreshold)
+            {
+                blockPressPending = false;
+                bufferedAction = held ? ActionInput.Guard :
+                    reachedHoldThreshold ? ActionInput.None : ActionInput.Parry;
+            }
+        }
+
+        // A queued hold only guards if the button is still down when the character is ready.
+        if (bufferedAction == ActionInput.Guard && !held)
+            bufferedAction = ActionInput.None;
+
+        if (bufferedAction == ActionInput.None || !combat.CanAct || combat.IsAttacking ||
+            combat.IsBlocking || combat.IsLeavingCombatAnimation)
             return;
 
-        bool reachedHoldThreshold = Time.time - blockPressedAt >= HoldBlockThreshold;
-        if (held && reachedHoldThreshold)
+        ActionInput action = bufferedAction;
+        bufferedAction = ActionInput.None;
+        switch (action)
         {
-            blockPressPending = false;
-            if (CanAffordGuard)
-                combat.TryBeginBlock();
-            else
-                InsufficientEnergy?.Invoke();
-        }
-        else if (!held)
-        {
-            blockPressPending = false;
-            if (!reachedHoldThreshold)
-            {
+            case ActionInput.Attack:
+            case ActionInput.FlyingKick:
+                TryPlayerAttack(action == ActionInput.FlyingKick);
+                break;
+            case ActionInput.Parry:
                 if (HasUsableEnergy)
                     combat.TryBeginParry();
                 else
                     InsufficientEnergy?.Invoke();
-            }
+                break;
+            case ActionInput.Guard:
+                if (CanAffordGuard)
+                    combat.TryBeginBlock();
+                else
+                    InsufficientEnergy?.Invoke();
+                break;
         }
+    }
+
+    private void ClearCombatInput()
+    {
+        blockPressPending = false;
+        bufferedAction = ActionInput.None;
     }
 
     private static void ReadBlockInput(out bool held, out bool pressed)
@@ -334,7 +372,7 @@ public class PlayerMovement : MonoBehaviour
     private void HandleDialogueStarted()
     {
         controlsUnlocked = false;
-        blockPressPending = false;
+        ClearCombatInput();
         combat.CancelActions();
     }
 
@@ -343,7 +381,7 @@ public class PlayerMovement : MonoBehaviour
         controlsUnlocked = true;
     }
 
-    private float AvailableEnergy => energyBar == null ? 0f : energyBar.normalizedValue;
+    private float AvailableEnergy => energyBar == null ? 0f : energyBar.value;
     private bool EnergyLocked => energyExhausted && AvailableEnergy < EnergyRecoveryThreshold;
     private bool HasUsableEnergy => !EnergyLocked && AvailableEnergy > 0f;
     private bool CanAffordGuard => HasUsableEnergy && AvailableEnergy >= normalBlockEnergyCost;
@@ -354,13 +392,13 @@ public class PlayerMovement : MonoBehaviour
             return;
 
         float previous = AvailableEnergy;
-        float next = Mathf.Clamp01(previous + amount);
+        float next = Mathf.Clamp(previous + amount, energyBar.minValue, energyBar.maxValue);
         if (previous > 0f && next == 0f)
             energyExhausted = true;
         else if (!EnergyLocked || next >= EnergyRecoveryThreshold)
             energyExhausted = false;
 
-        energyBar.normalizedValue = next;
+        energyBar.value = next;
     }
 
     private void RestorePerfectBlockEnergy()

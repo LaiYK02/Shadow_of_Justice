@@ -32,6 +32,7 @@ public class PlayerHUDController : MonoBehaviour
     private bool cutsceneActive;
     private bool choiceActive;
     private bool missionBannerActive;
+    private bool shopActive;
     private int displayedCoins = -1;
     private float displayedReputation;
     private readonly Queue<int> pendingCoinBalances = new();
@@ -44,7 +45,7 @@ public class PlayerHUDController : MonoBehaviour
     public int Reputation { get; private set; }
 
     public bool IsVisible => isActiveAndEnabled && !dialogueActive && !cutsceneActive &&
-        !choiceActive && !missionBannerActive;
+        !choiceActive && !missionBannerActive && !shopActive;
 
     private void Awake()
     {
@@ -115,6 +116,21 @@ public class PlayerHUDController : MonoBehaviour
     {
         missionBannerActive = active;
         RefreshVisibility();
+    }
+
+    internal void SetShopActive(bool active)
+    {
+        shopActive = active;
+        RefreshVisibility();
+    }
+
+    internal bool TrySpendCoins(int price)
+    {
+        if (price <= 0 || Coins < price)
+            return false;
+
+        AddRewards(-price, 0);
+        return true;
     }
 
     public void AddRewards(int coinDelta, int reputationDelta)

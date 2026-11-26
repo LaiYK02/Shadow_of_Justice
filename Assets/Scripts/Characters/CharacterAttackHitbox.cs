@@ -13,6 +13,19 @@ public class CharacterAttackHitbox : MonoBehaviour
     private readonly HashSet<CharacterCombat> targetsHit = new HashSet<CharacterCombat>();
     private BoxCollider attackCollider;
     private CharacterCombat suspect;
+    private float attackDamageBonus;
+    private float flyingKickDamageBonus;
+
+    internal float AttackDamage => damage + attackDamageBonus;
+    internal float FlyingKickDamage => damage + flyingKickDamageBonus;
+
+    internal void IncreaseDamage(float amount, bool flyingKick)
+    {
+        if (flyingKick)
+            flyingKickDamageBonus += amount;
+        else
+            attackDamageBonus += amount;
+    }
 
     private void Awake()
     {
@@ -72,7 +85,7 @@ public class CharacterAttackHitbox : MonoBehaviour
                 target.PlayHitReaction(owner);
             }
             else
-                hitLanded = target.ReceiveHit(damage, owner);
+                hitLanded = target.ReceiveHit(owner.IsFlyingKicking ? FlyingKickDamage : AttackDamage, owner);
 
             if (hitLanded)
                 owner.ConfirmAttackHit();

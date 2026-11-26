@@ -8,9 +8,11 @@ public class MissionFlowController : MonoBehaviour
     private const string TalkToOfficer = "Talk to the Fellow Officer";
     private const string CollectEvidence = "Collect the evidence";
     private const string ChaseSuspect = "Chase and hit the Suspect";
+    private const string FindTreasures = "Find all the treasures.";
     private const string HiddenObjective = "......";
     private const float BannerTimeMultiplier = 0.5f;
     private const float CompletionBannerDuration = 3f;
+    private const float TreasureHuntCompletionHold = 3f;
     private const int ArrestRewardCoins = 200;
     private const int ArrestRewardReputation = 10;
     private const int ReleaseRewardCoins = 100;
@@ -40,6 +42,7 @@ public class MissionFlowController : MonoBehaviour
     [SerializeField] private GameObject missionTitleDivider;
     [SerializeField] private TMP_Text[] objectiveTexts;
     [SerializeField] private TMP_Text chaseObjectiveText;
+    [SerializeField] private TMP_Text treasureHuntObjectiveText;
 
     [Header("Mission Details")]
     [SerializeField] private string missionNumber = "MISSION 1";
@@ -69,6 +72,7 @@ public class MissionFlowController : MonoBehaviour
     private MissionObjectiveRow[] evidenceRows;
     private readonly Vector3[] backdropCorners = new Vector3[4];
     private MissionObjectiveRow sharedObjectiveRow;
+    private MissionObjectiveRow treasureHuntRow;
     private bool[] objectivesCompleted;
     private float topRowY;
     private bool showMissionTitle;
@@ -133,6 +137,7 @@ public class MissionFlowController : MonoBehaviour
                 evidenceRows[i] = CreateRow(objectiveTexts[i]);
         }
         sharedObjectiveRow = CreateRow(chaseObjectiveText);
+        treasureHuntRow = CreateRow(treasureHuntObjectiveText);
         topRowY = (Array.Find(evidenceRows, row => row != null) ?? sharedObjectiveRow)?.ListPositionY ?? 0f;
     }
 
@@ -193,13 +198,13 @@ public class MissionFlowController : MonoBehaviour
 
             DismissCompletedEvidence();
 
-            if (hasRows)
-            {
-                if (missionTitle != null)
-                    missionTitle.SetActive(showMissionTitle);
-                if (missionTitleDivider != null)
-                    missionTitleDivider.SetActive(showMissionTitle);
-            }
+            bool showMainTitle = hasRows && showMissionTitle;
+            if (missionTitle != null)
+                missionTitle.SetActive(showMainTitle);
+            if (missionTitleDivider != null)
+                missionTitleDivider.SetActive(showMainTitle);
+
+            hasRows |= AdvanceRow(treasureHuntRow, deltaTime, ref nextRowY);
         }
 
         bool showPanel = canShow && hasRows;
@@ -248,6 +253,7 @@ public class MissionFlowController : MonoBehaviour
         IncludeRow(sharedObjectiveRow);
         foreach (MissionObjectiveRow row in evidenceRows)
             IncludeRow(row);
+        IncludeRow(treasureHuntRow);
 
         Vector2 topRight = max + BackdropPadding;
         Vector2 size = topRight - (min - BackdropPadding);
@@ -269,6 +275,26 @@ public class MissionFlowController : MonoBehaviour
 
         nextRowY -= row.Height;
         return true;
+    }
+
+    internal IEnumerator ShowTreasureHuntCompletion()
+    {
+        if (treasureHuntRow == null)
+            yield break;
+
+        treasureHuntRow.Show(FindTreasures, completed: true);
+
+        float remaining = TreasureHuntCompletionHold;
+        while (isActiveAndEnabled && remaining > 0f)
+        {
+            yield return null;
+            if (missionPanel.activeInHierarchy && treasureHuntRow.IsShowingCompletion)
+                remaining -= Time.unscaledDeltaTime;
+        }
+
+        treasureHuntRow.Dismiss();
+        while (isActiveAndEnabled && treasureHuntRow.HasContent)
+            yield return null;
     }
 
     private void DismissCompletedEvidence()

@@ -17,6 +17,7 @@ internal sealed class MissionObjectiveRow
     private Stage stage;
     private string nextText;
     private string completedText;
+    private bool enterCompleted;
     private bool dismissRequested;
     private float elapsed;
 
@@ -37,10 +38,15 @@ internal sealed class MissionObjectiveRow
         row.gameObject.SetActive(false);
     }
 
-    public void Show(string text)
+    public void Show(string text, bool completed = false)
     {
-        if (!HasContent)
-            nextText = text;
+        if (HasContent)
+            return;
+
+        nextText = text;
+        enterCompleted = completed;
+        if (completed)
+            completedText = text;
     }
 
     public void MarkComplete(string text)
@@ -81,7 +87,7 @@ internal sealed class MissionObjectiveRow
                 if (nextText == null)
                     return;
 
-                SetText(nextText, false);
+                SetText(nextText, enterCompleted);
                 nextText = null;
                 SetAppearance(-SlideDistance, 0f);
                 row.gameObject.SetActive(true);
@@ -92,7 +98,10 @@ internal sealed class MissionObjectiveRow
                 float enter = SlideProgress(deltaTime);
                 SetAppearance(Mathf.Lerp(-SlideDistance, 0f, enter), enter);
                 if (elapsed >= SlideDuration)
-                    Begin(Stage.Visible);
+                {
+                    Begin(enterCompleted ? Stage.ShowingCompletion : Stage.Visible);
+                    enterCompleted = false;
+                }
                 break;
 
             case Stage.Visible:

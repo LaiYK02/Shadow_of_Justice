@@ -24,6 +24,7 @@ public class CharacterCombat : MonoBehaviour
     private static readonly int FlyingKickStatePath = Animator.StringToHash("Base Layer.Flying Kick");
     private static readonly int ParryState = Animator.StringToHash("Blocking");
     private static readonly int ParryStatePath = Animator.StringToHash("Base Layer.Blocking");
+    private static readonly int GuardState = Animator.StringToHash("Standing Block Idle");
     private static readonly int Moving = Animator.StringToHash("IsMoving");
     private static readonly int Sprinting = Animator.StringToHash("IsSprinting");
     private static readonly int Attacking = Animator.StringToHash("IsAttacking");
@@ -61,6 +62,8 @@ public class CharacterCombat : MonoBehaviour
     public event System.Action GuardBlocked;
 
     public float Health { get; private set; }
+    internal float MaxHealth => maxHealth;
+    internal CharacterAttackHitbox AttackHitbox => attackHitbox;
     public bool IsDead => Health <= 0f;
     public bool IsBlocking => blockMode != BlockMode.None;
     internal bool IsGuarding => blockMode == BlockMode.Guard;
@@ -72,6 +75,17 @@ public class CharacterCombat : MonoBehaviour
     public bool CanAct => isActiveAndEnabled && !IsDead && !IsStunned && !IsHitReacting &&
         !isTalking && Time.time >= blockRecoveryEndsAt;
     internal Transform ModelTransform => animator != null ? animator.transform : null;
+
+    internal bool IsLeavingCombatAnimation => TryGetAnimationState(MeleeAttackState, out _) ||
+        TryGetAnimationState(FlyingKickState, out _) || TryGetAnimationState(ParryState, out _) ||
+        TryGetAnimationState(GuardState, out _);
+
+    internal void IncreaseMaxHealth(float amount)
+    {
+        maxHealth += amount;
+        Health += amount;
+        UpdateHealthBar();
+    }
 
     private void Awake()
     {
