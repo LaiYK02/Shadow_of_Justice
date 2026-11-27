@@ -96,6 +96,9 @@ public class MissionEndingSequence : MonoBehaviour
         if (suspectEscapeTarget != null)
             suspectCombat = suspectEscapeTarget.GetComponentInParent<CharacterCombat>();
 
+        if (DistrictTravelSession.HasVisitedOldTown && suspectCombat != null)
+            suspectCombat.gameObject.SetActive(false);
+
         if (choicePanel != null)
             choicePanel.SetActive(false);
         if (combatTutorialPanel != null)

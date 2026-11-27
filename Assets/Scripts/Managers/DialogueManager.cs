@@ -50,6 +50,7 @@ public class DialogueManager : MonoBehaviour
     private bool cursorStateSaved;
 
     public bool IsPlaying => isPlaying;
+    internal bool HasOpeningDialogue => openingDialogue is { Length: > 0 };
 
     public event Action DialogueStarted;
     public event Action DialogueEnded;

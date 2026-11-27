@@ -45,7 +45,8 @@ public class ThirdPersonCameraLook : MonoBehaviour
 
         pitch = Mathf.Clamp(pitch, minimumPitch, maximumPitch);
 
-        controlsUnlocked = dialogueManager == null;
+        controlsUnlocked = dialogueManager == null || !dialogueManager.HasOpeningDialogue ||
+            (gameObject.scene.name == nameof(District.CentralDistrict) && DistrictTravelSession.HasVisitedOldTown);
         SetCursorState(true);
     }
 

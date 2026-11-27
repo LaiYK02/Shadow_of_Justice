@@ -24,6 +24,14 @@ public class CameraIntroTransition : MonoBehaviour
 
     private void Awake()
     {
+        if (DistrictTravelSession.HasVisitedOldTown)
+        {
+            if (introStartCamera != null)
+                introStartCamera.enabled = false;
+            enabled = false;
+            return;
+        }
+
         if (introStartCamera == null || playerFollowCamera == null || cameraBrain == null)
         {
             Debug.LogError("CameraIntroTransition: Assign the intro camera, follow camera, and camera brain.", this);

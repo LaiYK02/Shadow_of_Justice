@@ -13,7 +13,6 @@ public class MissionFlowController : MonoBehaviour
     private const string TravelToOldTown = "Travel to Old Town via Grab Car Box";
     private const string FindTreasures = "Find all the treasures.";
     private const string HiddenObjective = "......";
-    private const float BannerTimeMultiplier = 0.5f;
     private const float CompletionBannerDuration = 3f;
     private const float TreasureHuntCompletionHold = 3f;
     private const int ArrestRewardCoins = 200;
@@ -92,9 +91,7 @@ public class MissionFlowController : MonoBehaviour
     private Resolution resolution;
     private bool suspectArrested;
     private bool travelObjectiveActive;
-    private GameObject activeBanner;
-    private float? timeScaleBeforeBanner;
-    private float fixedDeltaTimeBeforeBanner;
+    private MissionBanner banner;
 
     public bool CanInteract => missionStarted && !investigationCompleted;
     internal bool CanTalkToOfficer => !sequencePlaying && (playerHUD == null || playerHUD.IsVisible) &&
@@ -127,8 +124,18 @@ public class MissionFlowController : MonoBehaviour
 
     private void Awake()
     {
+        banner = new MissionBanner(playerHUD);
         objectivesCompleted = new bool[objectiveIds.Length];
         evidenceRows = new MissionObjectiveRow[objectiveIds.Length];
+
+        if (DistrictTravelSession.HasVisitedOldTown && DistrictTravelSession.ArrestedFirstSuspect is bool arrested)
+        {
+            Array.Fill(objectivesCompleted, true);
+            missionStarted = true;
+            investigationCompleted = true;
+            resolution = Resolution.Debriefed;
+            suspectArrested = arrested;
+        }
 
         if (missionStartPanel != null)
             missionStartPanel.SetActive(false);
@@ -181,7 +188,7 @@ public class MissionFlowController : MonoBehaviour
         if (grabCarMarker != null)
             grabCarMarker.SetRequested(false);
         StopAllCoroutines();
-        CloseBanner();
+        banner.Close();
         sequencePlaying = false;
     }
 
@@ -363,7 +370,7 @@ public class MissionFlowController : MonoBehaviour
             yield return null;
 
         if (missionStartPanel != null)
-            yield return PlayBanner(missionStartPanel, missionStartCanvasGroup, holdDuration);
+            yield return banner.Play(missionStartPanel, missionStartCanvasGroup, fadeInDuration, holdDuration, fadeOutDuration);
 
         showMissionTitle = true;
         evidenceInstructionActive = sharedObjectiveRow != null;
@@ -398,7 +405,7 @@ public class MissionFlowController : MonoBehaviour
                 completionReputationText.text = reputation > 0 ? "REPUTATION+" : "REPUTATION-";
 
             float holdTime = Mathf.Max(0f, CompletionBannerDuration - fadeInDuration - fadeOutDuration);
-            yield return StartCoroutine(PlayBanner(missionCompletedCanvasGroup.gameObject, missionCompletedCanvasGroup, holdTime));
+            yield return banner.Play(missionCompletedCanvasGroup.gameObject, missionCompletedCanvasGroup, fadeInDuration, holdTime, fadeOutDuration);
         }
 
         if (playerHUD != null)
@@ -438,64 +445,6 @@ public class MissionFlowController : MonoBehaviour
         sharedObjectiveRow?.Dismiss();
         while (sharedObjectiveRow?.IsDismissing == true)
             yield return null;
-    }
-
-    private IEnumerator PlayBanner(GameObject panel, CanvasGroup fade, float holdTime)
-    {
-        activeBanner = panel;
-        timeScaleBeforeBanner = Time.timeScale;
-        fixedDeltaTimeBeforeBanner = Time.fixedDeltaTime;
-        Time.timeScale *= BannerTimeMultiplier;
-        Time.fixedDeltaTime *= BannerTimeMultiplier;
-        if (playerHUD != null)
-            playerHUD.SetMissionBannerActive(true);
-
-        if (fade != null)
-        {
-            fade.alpha = 0f;
-            fade.interactable = false;
-            fade.blocksRaycasts = false;
-            panel.SetActive(true);
-
-            yield return Fade(fade, 0f, 1f, fadeInDuration);
-            yield return new WaitForSecondsRealtime(holdTime);
-            yield return Fade(fade, 1f, 0f, fadeOutDuration);
-        }
-        else
-        {
-            panel.SetActive(true);
-            yield return new WaitForSecondsRealtime(fadeInDuration + holdTime + fadeOutDuration);
-        }
-
-        CloseBanner();
-    }
-
-    private void CloseBanner()
-    {
-        if (!timeScaleBeforeBanner.HasValue)
-            return;
-
-        if (activeBanner != null)
-            activeBanner.SetActive(false);
-        activeBanner = null;
-        Time.timeScale = timeScaleBeforeBanner.Value;
-        Time.fixedDeltaTime = fixedDeltaTimeBeforeBanner;
-        timeScaleBeforeBanner = null;
-        if (playerHUD != null)
-            playerHUD.SetMissionBannerActive(false);
-    }
-
-    private static IEnumerator Fade(CanvasGroup fade, float startAlpha, float endAlpha, float duration)
-    {
-        float elapsed = 0f;
-        while (elapsed < duration)
-        {
-            elapsed += Time.unscaledDeltaTime;
-            fade.alpha = Mathf.Lerp(startAlpha, endAlpha, elapsed / duration);
-            yield return null;
-        }
-
-        fade.alpha = endAlpha;
     }
 
     public void CompleteObjective(string objectiveId)

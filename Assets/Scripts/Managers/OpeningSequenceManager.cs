@@ -57,6 +57,13 @@ public class OpeningSequenceManager : MonoBehaviour,
 
     private void Start()
     {
+        if (DistrictTravelSession.HasVisitedOldTown)
+        {
+            sequenceFinished = true;
+            openingPanel.SetActive(false);
+            return;
+        }
+
         if (openingPanel == null ||
             openingText == null ||
             typewriter == null)

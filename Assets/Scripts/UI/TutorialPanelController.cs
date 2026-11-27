@@ -30,6 +30,9 @@ public class TutorialPanelController : MonoBehaviour
     private Coroutine tutorialCoroutine;
     private float panelAlpha;
     private bool pauseMenuActive;
+    private bool travelActive;
+
+    private bool IsObscured => pauseMenuActive || travelActive;
 
     internal void SetPauseMenuActive(bool active)
     {
@@ -37,11 +40,17 @@ public class TutorialPanelController : MonoBehaviour
         SetPanelAlpha(panelAlpha);
     }
 
+    internal void SetTravelActive(bool active)
+    {
+        travelActive = active;
+        SetPanelAlpha(panelAlpha);
+    }
+
     private void SetPanelAlpha(float alpha)
     {
         panelAlpha = alpha;
         if (canvasGroup != null)
-            canvasGroup.alpha = pauseMenuActive ? 0f : panelAlpha;
+            canvasGroup.alpha = IsObscured ? 0f : panelAlpha;
     }
 
     private void Awake()
@@ -175,7 +184,7 @@ public class TutorialPanelController : MonoBehaviour
         while (elapsed < duration)
         {
             yield return null;
-            if (!pauseMenuActive)
+            if (!IsObscured)
                 elapsed += Time.unscaledDeltaTime;
         }
     }

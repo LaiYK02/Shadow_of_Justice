@@ -109,7 +109,8 @@ public class PlayerMovement : MonoBehaviour
     private void Start()
     {
         // CentralDistrict unlocks controls after the opening dialogue.
-        controlsUnlocked = dialogueManager == null;
+        controlsUnlocked = dialogueManager == null || !dialogueManager.HasOpeningDialogue ||
+            (gameObject.scene.name == nameof(District.CentralDistrict) && DistrictTravelSession.HasVisitedOldTown);
         hasStarted = true;
     }
 

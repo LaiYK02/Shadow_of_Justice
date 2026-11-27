@@ -1,7 +1,6 @@
 using System;
 using TMPro;
 using UnityEngine;
-using UnityEngine.SceneManagement;
 using UnityEngine.UI;
 
 #if ENABLE_INPUT_SYSTEM
@@ -30,6 +29,7 @@ public sealed class DistrictNavigationPanel : MonoBehaviour
     [SerializeField] private CharacterCombat combat;
     [SerializeField] private PlayerTravelProgress progress;
     [SerializeField] private TreasureHunt treasureHunt;
+    [SerializeField] private GrabCarSequence ride;
 
     private static readonly Color Current = new Color32(249, 198, 111, 255);
     private static readonly Color Available = new Color32(133, 220, 208, 255);
@@ -75,7 +75,7 @@ public sealed class DistrictNavigationPanel : MonoBehaviour
         foreach (Destination destination in destinations)
         {
             bool here = destination.district == currentDistrict;
-            bool available = !here && destination.district == DistrictTravelSession.NextDestination;
+            bool available = DistrictTravelSession.CanTravel(currentDistrict, destination.district);
             Color color = here ? Current : available ? Available : Locked;
             destination.status.text = here ? "You are here" : available ? "Travel available" : "Locked";
             destination.status.color = color;
@@ -131,8 +131,7 @@ public sealed class DistrictNavigationPanel : MonoBehaviour
 
     private void Travel(District district)
     {
-        if (!open || loading || closeRequested || district == currentDistrict ||
-            district != DistrictTravelSession.NextDestination)
+        if (!open || loading || closeRequested || !DistrictTravelSession.CanTravel(currentDistrict, district))
             return;
 
         string scene = district.ToString();
@@ -145,8 +144,13 @@ public sealed class DistrictNavigationPanel : MonoBehaviour
         loading = true;
         if (treasureHunt != null)
             treasureHunt.SettleCompletionReward(hud);
-        DistrictTravelSession.Depart(district, progress.Capture());
-        SceneManager.LoadScene(scene);
+        if (ride == null || !ride.TryDepart(district, progress.Capture(), previousTimeScale))
+        {
+            loading = false;
+            return;
+        }
+        open = false;
+        overlay.SetActive(false);
     }
 
     private static void ShowCursor()
